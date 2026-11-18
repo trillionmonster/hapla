@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the Codex version used by the protocol snapshot
+        shell: bash
+        run: |
+          codex_version="$(node -p "require('./packages/hapla-cli/src/codex/codexProtocolSnapshot.json').cliVersion")"
+          npm install --global "@openai/codex@${codex_version}"
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm web:build
+      - run: pnpm selfhost:check
+
+  worker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Build the isolated worker image
+        shell: bash
+        run: |
+          codex_version="$(node -p "require('./packages/hapla-cli/src/codex/codexProtocolSnapshot.json').cliVersion")"
+          docker build --build-arg "CODEX_VERSION=${codex_version}" -t hapla-worker:ci -f deploy/Dockerfile.worker .
+      - run: node scripts/worker-image-smoke.cjs hapla-worker:ci
+
+  r2-download-gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: integrations/r2-download-gateway
+    env:
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: integrations/r2-download-gateway/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build

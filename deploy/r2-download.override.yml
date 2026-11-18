@@ -1,0 +1,4 @@
+# Compatible download option on POST /v1/restore; only the API image changes.
+services:
+  api:
+    image: ${HAPLA_R2_CACHE_IMAGE:?Set the external file service image and version}

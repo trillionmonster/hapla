@@ -1,0 +1,7 @@
+{"type":"summary","summary":"Synthetic short session","leafUuid":"fixture-a1"}
+{"type":"user","uuid":"fixture-u1","message":{"role":"user","content":"say lol"}}
+{"type":"assistant","uuid":"fixture-a1","message":{"role":"assistant","content":[{"type":"text","text":"lol"}]}}
+{"type":"user","uuid":"fixture-u2","message":{"role":"user","content":"run ls tool "}}
+{"type":"assistant","uuid":"fixture-a2","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","id":"fixture-list","input":{"command":"ls"}}]}}
+{"type":"user","uuid":"fixture-u3","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"fixture-list","content":"0-say-lol-session.jsonl\nreadme.md"}]}}
+{"type":"assistant","uuid":"fixture-a3","message":{"role":"assistant","content":[{"type":"text","text":"Files: 0-say-lol-session.jsonl and readme.md."}]}}

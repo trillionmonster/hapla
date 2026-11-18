@@ -1,0 +1,40 @@
+.git
+.DS_Store
+.runtime
+.hapla
+artifacts
+.env
+.env.*
+**/*.heapsnapshot
+node_modules
+**/node_modules
+**/dist
+**/.turbo
+**/.next
+
+# Local rollback builds and generated acceptance media
+**/dist-before-*
+**/dist-stage-*
+**/__pycache__
+**/.wrangler
+**/coverage
+**/playwright-report
+**/test-results
+environments/lab-rat-todo-project/.hapla-media-acceptance
+environments/lab-rat-todo-project/audio-multimodal-round1
+environments/lab-rat-todo-project/e2e-*-output-*
+environments/lab-rat-todo-project/blue-haired-white-cat.png
+mechanical-whale-poster-768.png
+# Cache service sources are separate Git worktrees
+integrations/r2-cache
+integrations/r2-download
+
+# Optional integrations and contributor material are not application image inputs
+integrations
+docs
+.github
+examples
+**/wrangler.local.jsonc
+**/.dev.vars*
+**/.envrc
+本机流式ASR部署与使用说明.md

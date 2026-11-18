@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hapla-r2-download-probe",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "send_metrics": false,
+  "vars": {
+    "R2_ORIGIN": "https://configure-your-account.r2.cloudflarestorage.com",
+    "R2_BUCKET": "configure-your-private-bucket",
+    "ALLOWED_ORIGINS": "http://localhost:12345,https://hapla.example.com"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+    "redact_query_string": true,
+    "logs": { "enabled": true, "invocation_logs": false }
+  }
+}

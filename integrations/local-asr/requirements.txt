@@ -1,0 +1,5 @@
+qwen-asr[vllm]==0.0.6
+silero-vad==6.2.0
+fastapi==0.135.1
+uvicorn[standard]==0.41.0
+websockets==16.0

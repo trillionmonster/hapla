@@ -1,0 +1,118 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+/ios
+/android
+/packages/hapla-web/ios
+/packages/hapla-web/android
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env
+.env.production
+.env.selfhost
+.runtime/
+
+# typescript
+*.tsbuildinfo
+
+.claude/settings.local.json
+.claude/*.lock
+.claude/worktrees/
+.plan
+
+CLAUDE.local.md
+
+.dev/worktree/*
+
+# Local dev environments
+.environments/
+environments/data/
+
+# Development planning notes (keep local, don't commit)
+notes/
+docs/notes/
+# ralphex progress logs
+progress*.txt
+
+# Web exports stage beside dist before atomic publication
+packages/hapla-web/.export-staging-*/
+
+# Runtime state, authentication and private acceptance evidence
+/.hapla/
+/artifacts/
+**/.codex/
+**/.hapla-dev/
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars*
+.envrc
+*.heapsnapshot
+*.heapprofile
+*.cpuprofile
+*.log
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db-wal
+*.db-shm
+
+# Build backups, local caches and reports
+/packages/hapla-cli/dist-before-*/
+/packages/hapla-cli/dist-stage-*/
+coverage/
+playwright-report/
+test-results/
+__pycache__/
+*.py[cod]
+.wrangler/
+.turbo/
+.next/
+.cache/
+
+# Generated media in the dev-project template; keep its source files
+/environments/lab-rat-todo-project/.hapla-media-acceptance/
+/environments/lab-rat-todo-project/audio-multimodal-round1/
+/environments/lab-rat-todo-project/e2e-*-output-*/
+/environments/lab-rat-todo-project/blue-haired-white-cat.png
+/mechanical-whale-poster-768.png
+
+# External cache-service worktrees, maintained in their own repository
+/integrations/r2-cache/
+/integrations/r2-download/
+
+# Machine-specific configuration and private copies of operator manuals
+wrangler.local.jsonc
+/deploy/**/*.local.json
+/deploy/**/*.local.yml
+/本机流式ASR部署与使用说明.md

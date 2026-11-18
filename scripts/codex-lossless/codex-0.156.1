@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+resource_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+project_dir=$(cd -- "$resource_dir/../.." && pwd)
+patched_binary="$project_dir/.runtime/codex-source-0.156.1-lossless/codex-rs/target/debug/codex-app-server"
+
+if [[ $# == 1 && $1 == --version ]]; then
+    if [[ ! -x "$patched_binary" ]]; then
+        printf '%s\n' 'Prepared Codex 0.156.1 is missing; run scripts/codex-lossless/build-0.156.1.sh.' >&2
+        exit 69
+    fi
+    actual_version=$("$patched_binary" --version)
+    if [[ "$actual_version" != 'codex-app-server 0.156.1' ]]; then
+        printf 'Unexpected App Server version: %s\n' "$actual_version" >&2
+        exit 65
+    fi
+    printf '%s\n' 'codex-cli 0.156.1'
+    exit 0
+fi
+
+args=()
+removed_subcommand=false
+for arg in "$@"; do
+    if [[ "$arg" == app-server && "$removed_subcommand" == false ]]; then
+        removed_subcommand=true
+    else
+        args+=("$arg")
+    fi
+done
+if [[ "$removed_subcommand" != true ]]; then
+    printf '%s\n' 'This isolated executable supports only app-server and --version.' >&2
+    exit 64
+fi
+if [[ ! -x "$patched_binary" ]]; then
+    printf '%s\n' 'Prepared Codex 0.156.1 is missing; run scripts/codex-lossless/build-0.156.1.sh.' >&2
+    exit 69
+fi
+exec "$patched_binary" "${args[@]}"

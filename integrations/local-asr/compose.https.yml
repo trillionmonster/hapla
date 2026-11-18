@@ -1,0 +1,11 @@
+services:
+  https:
+    image: nginx:stable-alpine
+    container_name: local-asr-https
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./nginx-https.conf:/etc/nginx/nginx.conf:ro
+      - ../../.runtime/local-asr/tls/server.crt:/certs/server.crt:ro
+      - ../../.runtime/local-asr/tls/server.key:/certs/server.key:ro
+      - ../../.runtime/local-asr/tls/rootCA.crt:/certs/rootCA.crt:ro

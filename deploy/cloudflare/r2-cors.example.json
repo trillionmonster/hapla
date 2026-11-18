@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://hapla.example.com", "http://localhost:12345"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["Range", "If-Range", "If-None-Match"]
+      },
+      "exposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "Content-Type", "Content-Disposition", "ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

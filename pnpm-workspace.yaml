@@ -1,0 +1,5 @@
+packages:
+  - "packages/hapla-web"
+  - "packages/hapla-cli"
+  - "packages/hapla-server"
+  - "packages/hapla-wire"

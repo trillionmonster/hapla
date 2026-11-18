@@ -1,0 +1,36 @@
+name: hapla
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${HAPLA_SERVER_IMAGE:-hapla-server:lite}
+    restart: always
+    environment:
+      HAPLA_MASTER_SECRET: ${HAPLA_MASTER_SECRET:?Set HAPLA_MASTER_SECRET}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      HAPLA_WEBAPP_URL: ${HAPLA_WEBAPP_URL:-http://localhost:12345}
+      HAPLA_ACCESS_PASSWORD_HASH: ${HAPLA_ACCESS_PASSWORD_HASH:-}
+      HAPLA_ASR_URL: ${HAPLA_ASR_URL:-}
+    volumes:
+      - hapla-data:/data
+    expose:
+      - "3005"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.webapp
+      args:
+        HAPLA_SERVER_URL: ""
+        HAPLA_ASR_PAGE_URL: ${HAPLA_ASR_PAGE_URL:-}
+    image: ${HAPLA_WEB_IMAGE:-hapla-web:lite}
+    restart: always
+    depends_on:
+      - server
+    ports:
+      - "${HAPLA_BIND_ADDRESS:-0.0.0.0}:${HAPLA_PORT:-12345}:80"
+
+volumes:
+  hapla-data:

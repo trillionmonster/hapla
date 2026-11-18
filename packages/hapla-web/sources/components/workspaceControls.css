@@ -1,0 +1,94 @@
+.hapla-workspace-toolbar-shell {
+    flex: 0 0 auto;
+    background: var(--workspace-surface);
+    border-bottom: 1px solid var(--workspace-line);
+}
+.hapla-workspace-toolbar {
+    box-sizing: border-box;
+    width: 100%;
+    margin-inline: auto;
+    padding: 4px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.hapla-workspace-actions { display: flex; align-items: center; gap: 6px; }
+.hapla-workspace-control {
+    appearance: none;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--workspace-muted);
+    font-family: IBMPlexSans-Regular, system-ui, sans-serif;
+    font-size: var(--fonts-label-font-size, 16px);
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.hapla-workspace-control[aria-pressed="true"] {
+    color: var(--workspace-text);
+    background: var(--workspace-selected);
+    border-color: var(--workspace-line);
+    font-family: IBMPlexSans-SemiBold, system-ui, sans-serif;
+    box-shadow: var(--workspace-shadow);
+}
+.hapla-workspace-control--close {
+    color: var(--workspace-text);
+    background: var(--workspace-raised);
+    border-color: var(--workspace-line);
+}
+@media (hover: hover) {
+    .hapla-workspace-control:hover { background: var(--workspace-raised); color: var(--workspace-text); }
+    .hapla-workspace-control[aria-pressed="true"]:hover,
+    .hapla-workspace-control--close:hover { background: var(--workspace-selected); }
+}
+.hapla-workspace-control--toggle {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 8px;
+    font: 600 17px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+    letter-spacing: -1px;
+}
+.hapla-workspace-control--toggle[aria-pressed="true"],
+.hapla-workspace-control--toggle[aria-pressed="true"]:hover {
+    color: var(--workspace-coder);
+    background: rgba(52, 136, 255, .12);
+    border-color: rgba(52, 136, 255, .2);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    box-shadow: none;
+}
+.hapla-workspace-control:active { opacity: .72; }
+.hapla-workspace-control:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 3px; }
+.hapla-file-preview-header {
+    box-sizing: border-box;
+    min-height: 52px;
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--workspace-surface);
+    border-bottom: 1px solid var(--workspace-line);
+    color: var(--workspace-muted);
+    font-size: var(--fonts-label-font-size, 16px);
+}
+.hapla-file-preview-title { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 700px), (pointer: coarse) {
+    .hapla-workspace-control { min-height: 44px; }
+    .hapla-workspace-control--toggle { width: 44px; }
+    .hapla-workspace-toolbar { padding: 2px 12px; gap: 8px; }
+}
+@media (max-width: 520px) {
+    .hapla-workspace-control--action { width: 44px; padding: 0; }
+    .hapla-workspace-control--action .hapla-workspace-control-label { display: none; }
+}

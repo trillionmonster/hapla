@@ -1,0 +1,6 @@
+# Optional host-specific subnet. Containers still receive dynamic addresses.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${HAPLA_DOCKER_SUBNET:?Set an unused private IPv4 subnet}

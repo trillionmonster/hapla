@@ -1,0 +1,40 @@
+# One invocation per user: the Compose project scopes both persistent volumes.
+# The relay network is shared; no workspace, home directory, or Docker socket is.
+services:
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+      args:
+        CODEX_VERSION: ${HAPLA_CODEX_VERSION:?Set the tested Codex version}
+        CLAUDE_CODE_VERSION: ${HAPLA_CLAUDE_CODE_VERSION:-}
+    image: ${HAPLA_WORKER_IMAGE:?Set the worker image}
+    user: "1000:1000"
+    init: true
+    restart: always
+    working_dir: /workspace
+    command: ["hapla", "daemon", "start-sync"]
+    environment:
+      HOME: /home/node
+      HAPLA_HOME_DIR: /home/node/.hapla
+      CODEX_HOME: /home/node/.codex
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+      HAPLA_WORKSPACE_ROOT: /workspace
+      HAPLA_SERVER_URL: http://server:3005
+      HAPLA_WEBAPP_URL: ${HAPLA_WORKER_WEBAPP_URL:?Set the browser URL}
+      HAPLA_DISABLE_CAFFEINATE: "1"
+    volumes:
+      - worker-home:/home/node
+      - worker-workspace:/workspace
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [relay]
+
+volumes:
+  worker-home:
+  worker-workspace:
+
+networks:
+  relay:
+    external: true
+    name: ${HAPLA_RELAY_NETWORK:?Start the relay instance first}

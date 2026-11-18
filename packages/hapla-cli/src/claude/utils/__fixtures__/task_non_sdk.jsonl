@@ -1,0 +1,4 @@
+{"type":"user","uuid":"fixture-task-u","message":{"role":"user","content":"Use a subagent."}}
+{"type":"assistant","uuid":"fixture-task-a","message":{"role":"assistant","content":[{"type":"tool_use","id":"fixture-task-call","name":"Task","input":{"prompt":"Search the web for information about TypeScript 5.6","description":"Search TypeScript docs"}}]}}
+{"type":"user","uuid":"fixture-task-root","message":{"role":"user","content":"Search the web for information about TypeScript 5.6"},"isSidechain":true,"parentUuid":null}
+{"type":"assistant","uuid":"fixture-task-child","message":{"role":"assistant","content":[{"type":"text","text":"I'll search for information about TypeScript 5.6"}]},"isSidechain":true,"parentUuid":"fixture-task-root"}

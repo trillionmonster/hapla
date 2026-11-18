@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "character-composer",
+  "displayName": "人物组合器",
+  "mcpServer": {
+    "command": "node",
+    "args": ["./server.mjs"],
+    "envFromHost": ["CHARACTER_ASSET_BASE_URL"]
+  }
+}

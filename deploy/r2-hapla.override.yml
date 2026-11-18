@@ -1,0 +1,19 @@
+# Apply after the reference cache service's own compose and network files.
+# The transfer service remains the only R2 writer and retains its quota ledger.
+services:
+  api:
+    image: ${HAPLA_R2_CACHE_IMAGE:?Set the external file service image and version}
+    volumes:
+      - type: bind
+        source: ${MEDIA_DIR}
+        target: /media
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${MEDIA_DIR}/hapla
+        target: /media/hapla
+        bind: {create_host_path: false}
+  transfer:
+    image: ${HAPLA_R2_CACHE_IMAGE:?Set the external file service image and version}
+  scheduler:
+    image: ${HAPLA_R2_CACHE_IMAGE:?Set the external file service image and version}

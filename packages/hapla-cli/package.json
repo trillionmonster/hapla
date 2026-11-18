@@ -1,0 +1,146 @@
+{
+  "name": "hapla",
+  "version": "1.1.7",
+  "description": "Web-first remote workspace for Claude Code and Codex",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "hapla": "./dist/index.mjs",
+    "hapla-mcp": "./dist/codex/haplaMcpStdioBridge.mjs",
+    "hapla-video-preview": "./dist/videoPreview.mjs"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    },
+    "./lib": {
+      "require": {
+        "types": "./dist/lib.d.cts",
+        "default": "./dist/lib.cjs"
+      },
+      "import": {
+        "types": "./dist/lib.d.mts",
+        "default": "./dist/lib.mjs"
+      }
+    },
+    "./codex/haplaMcpStdioBridge": {
+      "require": {
+        "types": "./dist/codex/haplaMcpStdioBridge.d.cts",
+        "default": "./dist/codex/haplaMcpStdioBridge.cjs"
+      },
+      "import": {
+        "types": "./dist/codex/haplaMcpStdioBridge.d.mts",
+        "default": "./dist/codex/haplaMcpStdioBridge.mjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "skills",
+    "scripts",
+    "package.json"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "shx rm -rf dist && tsc --noEmit && pkgroll",
+    "test": "$npm_execpath run build && vitest run --project unit",
+    "test:integration": "$npm_execpath run build && vitest run --project integration-empty --project integration-plan-mode --project integration-authenticated",
+    "start": "$npm_execpath run build && node ./dist/index.mjs",
+    "cli": "tsx src/index.ts",
+    "dev": "tsx src/index.ts",
+    "dev:local-server": "$npm_execpath run build && tsx --env-file .env.dev-local-server src/index.ts",
+    "prepublishOnly": "$npm_execpath run build && $npm_execpath test",
+    "release": "npx --no-install release-it",
+    "stable": "node scripts/env-wrapper.cjs stable",
+    "dev:variant": "node scripts/env-wrapper.cjs dev",
+    "stable:daemon:start": "node scripts/env-wrapper.cjs stable daemon start",
+    "stable:daemon:stop": "node scripts/env-wrapper.cjs stable daemon stop",
+    "stable:daemon:status": "node scripts/env-wrapper.cjs stable daemon status",
+    "stable:auth": "node scripts/env-wrapper.cjs stable auth",
+    "dev:daemon:start": "node scripts/env-wrapper.cjs dev daemon start",
+    "dev:daemon:stop": "node scripts/env-wrapper.cjs dev daemon stop",
+    "dev:daemon:status": "node scripts/env-wrapper.cjs dev daemon status",
+    "dev:auth": "node scripts/env-wrapper.cjs dev auth",
+    "setup:dev": "node scripts/setup-dev.cjs",
+    "doctor": "node scripts/env-wrapper.cjs stable doctor"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.220",
+    "@anthropic-ai/sdk": "^0.115.0",
+    "@anthropic-ai/sandbox-runtime": "^0.0.67",
+    "@hapla/wire": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "@stablelib/base64": "^2.0.1",
+    "@stablelib/hex": "^2.0.1",
+    "@types/cross-spawn": "^6.0.6",
+    "@types/http-proxy": "^1.17.17",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@types/react": "^19.2.7",
+    "@types/tmp": "^0.2.6",
+    "axios": "^1.19.0",
+    "chalk": "^5.6.2",
+    "cross-spawn": "^7.0.6",
+    "fastify": "^5.11.0",
+    "fastify-type-provider-zod": "5.1.0",
+    "http-proxy": "^1.18.1",
+    "http-proxy-middleware": "^4.2.0",
+    "ink": "^6.5.1",
+    "inquirer": "^13.2.2",
+    "node-pty": "^1.1.0",
+    "open": "^10.2.0",
+    "ps-list": "^8.1.1",
+    "qrcode-terminal": "^0.12.0",
+    "react": "^19.2.0",
+    "socket.io-client": "^4.8.1",
+    "tmp": "^0.2.7",
+    "tweetnacl": "^1.0.3",
+    "ws": "^8.21.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^1",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": ">=20",
+    "@types/ws": "^8.18.1",
+    "cross-env": "^10.1.0",
+    "dotenv": "^16.6.1",
+    "eslint": "^9",
+    "eslint-config-prettier": "^10",
+    "pkgroll": "^2.14.2",
+    "release-it": "^19.0.6",
+    "shx": "^0.3.3",
+    "ts-node": "^10",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trillionmonster/hapla.git",
+    "directory": "packages/hapla-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/trillionmonster/hapla/issues"
+  },
+  "homepage": "https://github.com/trillionmonster/hapla#readme"
+}

@@ -1,0 +1,55 @@
+# Optional per-user CLI image. The standard relay/Web deployment does not build it.
+FROM node:22-bookworm AS manifests
+RUN corepack enable && corepack prepare pnpm@10.11.0 --activate
+WORKDIR /repo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches ./patches
+COPY scripts/postinstall.cjs ./scripts/postinstall.cjs
+COPY packages/hapla-wire/package.json ./packages/hapla-wire/package.json
+COPY packages/hapla-cli/package.json ./packages/hapla-cli/package.json
+
+FROM manifests AS builder
+RUN --mount=type=cache,id=hapla-pnpm,target=/root/.local/share/pnpm/store \
+    npm_config_nodedir=/usr/local SKIP_HAPLA_WIRE_BUILD=1 pnpm install --frozen-lockfile --config.node-linker=isolated \
+    --filter @hapla/wire... --filter ./packages/hapla-cli...
+COPY packages/hapla-wire ./packages/hapla-wire
+COPY packages/hapla-cli ./packages/hapla-cli
+RUN pnpm --filter @hapla/wire build && pnpm --filter ./packages/hapla-cli build
+
+# Keep the isolated pnpm workspace layout in the runtime image. A frozen
+# production install also builds node-pty for the runtime's platform.
+FROM manifests AS production-deps
+RUN --mount=type=cache,id=hapla-pnpm,target=/root/.local/share/pnpm/store \
+    npm_config_nodedir=/usr/local SKIP_HAPLA_WIRE_BUILD=1 pnpm install --prod --frozen-lockfile \
+    --config.node-linker=isolated --filter ./packages/hapla-cli...
+
+FROM node:22-bookworm-slim AS runner
+ARG CODEX_VERSION
+ARG CLAUDE_CODE_VERSION=""
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates git openssh-client ripgrep ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -n "$CODEX_VERSION" \
+    && npm install --global "@openai/codex@${CODEX_VERSION}" \
+    && if [ -n "$CLAUDE_CODE_VERSION" ]; then npm install --global "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"; fi \
+    && npm cache clean --force
+COPY --from=production-deps /repo/node_modules /opt/hapla/node_modules
+COPY --from=production-deps /repo/packages /opt/hapla/packages
+COPY --from=builder /repo/packages/hapla-wire/dist /opt/hapla/packages/hapla-wire/dist
+COPY --from=builder /repo/packages/hapla-cli/dist /opt/hapla/packages/hapla-cli/dist
+COPY --from=builder /repo/packages/hapla-cli/scripts /opt/hapla/packages/hapla-cli/scripts
+COPY --from=builder /repo/packages/hapla-cli/skills /opt/hapla/packages/hapla-cli/skills
+RUN ln -s /opt/hapla/packages/hapla-cli/dist/index.mjs /usr/local/bin/hapla \
+    && chmod 755 /opt/hapla/packages/hapla-cli/dist/index.mjs \
+    && mkdir -p /home/node/.hapla /home/node/.codex /home/node/.claude /workspace \
+    && chown -R node:node /home/node /workspace
+ENV NODE_ENV=production \
+    HOME=/home/node \
+    HAPLA_HOME_DIR=/home/node/.hapla \
+    CODEX_HOME=/home/node/.codex \
+    CLAUDE_CONFIG_DIR=/home/node/.claude \
+    HAPLA_WORKSPACE_ROOT=/workspace \
+    HAPLA_DISABLE_CAFFEINATE=1
+USER node
+WORKDIR /workspace
+CMD ["hapla", "daemon", "start-sync"]

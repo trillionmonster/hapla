@@ -1,0 +1,5 @@
+# Apply after docker-compose.selfhost.yml. NAS API v2 uses upload/restore only.
+services:
+  server:
+    environment:
+      HAPLA_R2_CACHE_URL: ${HAPLA_R2_CACHE_URL:?Set the external file service URL}

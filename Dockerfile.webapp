@@ -1,0 +1,33 @@
+FROM node:22-bookworm AS builder
+RUN corepack enable \
+    && corepack prepare pnpm@10.11.0 --activate
+
+WORKDIR /repo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches ./patches
+COPY scripts/postinstall.cjs ./scripts/postinstall.cjs
+COPY scripts/export-web.cjs ./scripts/export-web.cjs
+COPY packages/hapla-wire/package.json ./packages/hapla-wire/package.json
+COPY packages/hapla-web/package.json ./packages/hapla-web/package.json
+
+RUN --mount=type=cache,id=hapla-pnpm,target=/root/.local/share/pnpm/store \
+    SKIP_HAPLA_WIRE_BUILD=1 pnpm install --frozen-lockfile --config.node-linker=isolated \
+    --filter @hapla/wire... --filter hapla-web...
+
+COPY packages/hapla-wire ./packages/hapla-wire
+COPY packages/hapla-web ./packages/hapla-web
+
+ARG HAPLA_SERVER_URL=""
+ARG HAPLA_ASR_PAGE_URL=""
+ENV NODE_ENV=production \
+    APP_ENV=production \
+    EXPO_PUBLIC_HAPLA_SERVER_URL=$HAPLA_SERVER_URL \
+    EXPO_PUBLIC_ASR_URL=$HAPLA_ASR_PAGE_URL
+
+RUN pnpm --filter @hapla/wire build \
+    && pnpm --filter hapla-web build
+
+FROM nginx:1.27.5-alpine-slim AS runner
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /repo/packages/hapla-web/dist /usr/share/nginx/html
+EXPOSE 80

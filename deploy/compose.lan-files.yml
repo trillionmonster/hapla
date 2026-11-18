@@ -1,0 +1,18 @@
+# Optional LAN-original delivery for the existing NAS R2 service.
+# Merge after docker-compose.selfhost.yml; see docs/lan-file-delivery.md.
+services:
+  server:
+    environment:
+      HAPLA_NAS_SOURCE_ROOT: /nas-originals
+      HAPLA_R2_SOURCE_ORIGIN: ${HAPLA_R2_SOURCE_ORIGIN:?Set the exact R2 endpoint and bucket}
+      HAPLA_R2_SOURCE_DATABASE_URL_FILE: /run/secrets/nas-reader-database-url
+    volumes:
+      - ${HAPLA_NAS_ORIGINALS_DIR:?Set the NAS originals directory}:/nas-originals:ro
+      - ${HAPLA_NAS_READER_DATABASE_URL_FILE:?Set the read-only database connection file}:/run/secrets/nas-reader-database-url:ro
+    networks:
+      - default
+      - nas-cache
+networks:
+  nas-cache:
+    external: true
+    name: ${HAPLA_NAS_DATABASE_NETWORK:-r2cache_default}

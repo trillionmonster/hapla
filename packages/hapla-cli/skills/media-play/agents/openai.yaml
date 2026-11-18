@@ -1,0 +1,4 @@
+interface:
+  display_name: "Media Play"
+  short_description: "Preview and verify local or remote media files"
+  default_prompt: "Use $media-play to inspect and display this media file."

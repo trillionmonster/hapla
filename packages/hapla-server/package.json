@@ -1,0 +1,82 @@
+{
+  "name": "hapla-server",
+  "version": "0.0.0",
+  "author": "Steve Korshakov",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "start": "tsx ./sources/main.ts",
+    "standalone": "tsx ./sources/standalone.ts",
+    "standalone:dev": "tsx --env-file=.env.dev ./sources/standalone.ts migrate && tsx --env-file=.env.dev ./sources/standalone.ts serve",
+    "dev": "lsof -ti tcp:3005 | xargs kill -9 && tsx --env-file=.env --env-file=.env.dev ./sources/main.ts",
+    "test": "vitest run",
+    "migrate": "dotenv -e .env.dev -- prisma migrate dev",
+    "migrate:reset": "dotenv -e .env.dev -- prisma migrate reset",
+    "generate": "prisma generate",
+    "postinstall": "prisma generate"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^20.12.3",
+    "@types/pg": "^8.23.1",
+    "@types/semver": "^7.7.0",
+    "@types/tmp": "^0.2.6",
+    "@types/uuid": "^9.0.8",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "6.19.2",
+    "prisma-json-types-generator": "3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "5.9.3",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^3.2.7",
+    "yaml": "^2.4.2",
+    "@types/ws": "8.18.1"
+  },
+  "dependencies": {
+    "@date-fns/tz": "^1.2.0",
+    "@electric-sql/pglite": "^0.3.15",
+    "@fastify/bearer-auth": "^10.1.1",
+    "@fastify/cors": "^10.0.1",
+    "@hapla/wire": "workspace:*",
+    "@prisma/client": "6.19.2",
+    "chalk": "4.1.2",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.11.0",
+    "fastify-type-provider-zod": "^4.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "octokit": "^5.0.3",
+    "pg": "^8.23.0",
+    "pglite-prisma-adapter": "0.6.1",
+    "pino-pretty": "^13.0.0",
+    "privacy-kit": "^0.0.25",
+    "prom-client": "^15.1.3",
+    "reflect-metadata": "^0.2.2",
+    "semver": "^7.7.2",
+    "sharp": "^0.35.3",
+    "socket.io": "^4.8.3",
+    "socket.io-adapter": "^2.5.5",
+    "tmp": "^0.2.7",
+    "tsx": "^4.19.2",
+    "tweetnacl": "^1.0.3",
+    "uuid": "^11.1.1",
+    "zod": "3.25.76",
+    "zod-to-json-schema": "^3.24.3",
+    "ws": "8.21.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trillionmonster/hapla.git",
+    "directory": "packages/hapla-server"
+  },
+  "bugs": {
+    "url": "https://github.com/trillionmonster/hapla/issues"
+  },
+  "homepage": "https://github.com/trillionmonster/hapla#readme"
+}

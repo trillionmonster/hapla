@@ -1,0 +1,2 @@
+{"type":"user","uuid":"fixture-u1","message":{"role":"user","content":"say lol"}}
+{"type":"assistant","uuid":"fixture-a1","message":{"role":"assistant","content":[{"type":"text","text":"lol"}]}}

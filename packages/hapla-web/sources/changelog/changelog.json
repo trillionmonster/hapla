@@ -1,0 +1,18 @@
+{
+  "entries": [
+    {
+      "version": 1,
+      "date": "2026-08-01",
+      "summary": "Hapla introduces a Web-first workspace for Codex CLI and Claude Code with responsive Normal and Coder modes.",
+      "changes": [
+        "Dynamic model and reasoning-effort catalogs from each installed CLI",
+        "Custom per-session environment variables for compatible API providers",
+        "Coder workspace with terminal, file browser, and media previews",
+        "Interactive Skills powered by Codex App Server and MCP Apps",
+        "Responsive image and video galleries for desktop and phone browsers"
+      ],
+      "rawMarkdown": "## Hapla 1 - 2026-08-01\n\nHapla introduces a Web-first workspace for Codex CLI and Claude Code with responsive Normal and Coder modes.\n\n- Dynamic model and reasoning-effort catalogs from each installed CLI\n- Custom per-session environment variables for compatible API providers\n- Coder workspace with terminal, file browser, and media previews\n- Interactive Skills powered by Codex App Server and MCP Apps\n- Responsive image and video galleries for desktop and phone browsers"
+    }
+  ],
+  "latestVersion": 1
+}
