@@ -8,6 +8,10 @@ start Hapla are allowed; the self-host tests below use temporary fixtures and
 do not start real stacks. Preserve running stacks throughout development.
 CI runs the workspace checks and the optional R2 gateway independently. It does
 not publish packages, deploy infrastructure, or start authenticated agent turns.
+The workspace job explicitly installs system `ripgrep` before running CLI tests;
+the checkout does not contain the optional unpacked search binary. A mock version
+response does not establish that real searches work. Launcher regression coverage
+also verifies discovery of executables available only through `PATH`.
 An additional worker-image job builds the optional CLI image and checks its Hapla
 and Codex entry points, non-root writable paths, and native PTY with networking
 disabled and no account credentials. To repeat after building an image, run
@@ -33,6 +37,11 @@ that project's full verified Compose file list with `config --quiet`, as shown
 in the development guide. For a standard self-host configuration check, use the
 same `--instance` as the intended target; unrelated workers and stopped rollback
 containers do not count as port conflicts.
+
+After an authorized push, check the GitHub Actions run for the exact commit and
+wait for its final result. Local checks and a successful push do not establish
+that hosted CI passed. Inspect failed job logs, fix the cause, and verify the new
+commit's run; historical failed commits retain their original results.
 
 ## Codex protocol version
 

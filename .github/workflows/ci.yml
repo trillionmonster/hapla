@@ -28,6 +28,11 @@ jobs:
         run: |
           codex_version="$(node -p "require('./packages/hapla-cli/src/codex/codexProtocolSnapshot.json').cliVersion")"
           npm install --global "@openai/codex@${codex_version}"
+      - name: Install native search dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ripgrep
+          rg --version
       - run: pnpm check
       - run: pnpm test
       - run: pnpm web:build
