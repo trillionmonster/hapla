@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { TokenStorage, AuthCredentials } from '@/auth/tokenStorage';
+import { clearMediaAccess } from '@/auth/mediaAccess';
 import { syncCreate } from '@/sync/sync';
 import * as Updates from 'expo-updates';
 import { clearPersistence } from '@/sync/persistence';
@@ -42,6 +43,7 @@ export function AuthProvider({ children, initialCredentials }: { children: React
         const hadCredentials = !!credentials;
         const credentialsChanged = credentials?.token !== newCredentials.token
             || credentials?.secret !== newCredentials.secret;
+        if (credentials && credentialsChanged) await clearMediaAccess(credentials);
         const success = await TokenStorage.setCredentials(newCredentials);
         if (success) {
             setCredentials(newCredentials);
@@ -60,6 +62,7 @@ export function AuthProvider({ children, initialCredentials }: { children: React
     };
 
     const logout = async () => {
+        if (credentials) await clearMediaAccess(credentials);
         clearPersistence();
         await TokenStorage.removeCredentials();
         

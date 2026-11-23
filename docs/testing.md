@@ -1,6 +1,11 @@
 # Testing and validation
 
-Run commands from the repository root unless another directory is specified.
+Run application builds and package tests from the repository root inside a
+`dev-hapla` development container, as described in the [development guide](development.md).
+Run and debug Hapla CLI only inside Docker, including authenticated acceptance.
+Host-side Docker management and documentation/configuration checks that do not
+start Hapla are allowed; the self-host tests below use temporary fixtures and
+do not start real stacks. Preserve running stacks throughout development.
 CI runs the workspace checks and the optional R2 gateway independently. It does
 not publish packages, deploy infrastructure, or start authenticated agent turns.
 An additional worker-image job builds the optional CLI image and checks its Hapla
@@ -22,8 +27,12 @@ the frozen Codex App Server schema, and builds/type checks all four packages.
 `pnpm test` covers self-host automation, dependency patches, wire contracts, CLI unit tests,
 Server, and Web. `pnpm selfhost:check` needs Docker Compose; it validates configuration
 without starting containers. Docker must be running so the preflight can check project ownership
-and running port owners. Use the same `--instance` as the target installation; unrelated workers
-and stopped rollback containers do not count as port conflicts.
+and running port owners. This command targets the standard self-host wrapper;
+its `--instance` naming does not select the exact `dev-hapla` project. Validate
+that project's full verified Compose file list with `config --quiet`, as shown
+in the development guide. For a standard self-host configuration check, use the
+same `--instance` as the intended target; unrelated workers and stopped rollback
+containers do not count as port conflicts.
 
 ## Codex protocol version
 
@@ -79,3 +88,12 @@ Browser and media acceptance utilities live in
 `chromium` on `PATH`; no developer-specific browser installation is assumed.
 Production-oriented utilities may create sessions or messages and require explicit
 test account inputs. Inspect the script and use an isolated deployment.
+
+For composer and follow-up changes, run the real
+[frontend interaction workflows](../scripts/acceptance/README.md#frontend-interaction-acceptance)
+inside `dev-hapla`. Close the loop from clicking and typing to native execution,
+rendered results, persistence, failure feedback and successful retry. Cover paused
+queue isolation, concurrent edits, offline drafts, BTW interruption, terminal
+execution, structured questions, live freshness, narrow layouts and proxy access.
+Keep actions, results, recordings and failure evidence together in ignored storage.
+Do not substitute component mocks or a visual review for these workflows.

@@ -76,6 +76,26 @@ describe('RPC Socket.IO transport deadlines', () => {
         unsubscribe();
     });
 
+    it('rejects encrypted command errors even when the relay ACK succeeds', async () => {
+        connection.connect();
+        crypt.decryptRaw.mockResolvedValueOnce({ error: '这条消息已被修改，请刷新队列' });
+        const pending = apiSocket.sessionCommand('target', 'codex-queue', { action: 'update' });
+        const rejected = expect(pending).rejects.toThrow('这条消息已被修改，请刷新队列');
+        await vi.advanceTimersByTimeAsync(0);
+        connection.ack(connection.packets()[0].id!, { ok: true, result: 'encrypted-handler-error' });
+        await rejected;
+        expect(crypt.decryptRaw).toHaveBeenCalledWith('encrypted-handler-error');
+    });
+
+    it('returns a successfully decrypted command result', async () => {
+        connection.connect();
+        crypt.decryptRaw.mockResolvedValueOnce({ id: 'side-chat' });
+        const pending = apiSocket.sessionCommand('target', 'codex-side-send', { text: 'Question' });
+        await vi.advanceTimersByTimeAsync(0);
+        connection.ack(connection.packets()[0].id!, { ok: true, result: 'encrypted-result' });
+        await expect(pending).resolves.toEqual({ id: 'side-chat' });
+    });
+
     for (const [scope, deadline] of [['session', 50_000], ['machine', 20_000]] as const) {
         const call = (timeoutMs?: number) => scope === 'session'
             ? apiSocket.sessionRPC('target', 'read-file', { path: 'REPORT.md' }, timeoutMs)
@@ -88,6 +108,37 @@ describe('RPC Socket.IO transport deadlines', () => {
             expect(connection.acks()).toEqual([]);
             connection.connect();
             expect(connection.packets()).toEqual([]);
+        });
+
+        it(`${scope}: rejects browser-offline commands with an apparently connected WebSocket and does not replay them`, async () => {
+            connection.connect();
+            vi.stubGlobal('navigator', { onLine: false });
+            await expect(call()).rejects.toThrow('网络已离线，请恢复连接后重试');
+            expect(connection.socket.connected).toBe(true);
+            expect(crypt.encryptRaw).not.toHaveBeenCalled();
+            expect(connection.acks()).toEqual([]);
+            expect(connection.packets()).toEqual([]);
+            vi.stubGlobal('navigator', { onLine: true });
+            expect(connection.packets()).toEqual([]);
+            const retry = call();
+            await vi.advanceTimersByTimeAsync(0);
+            connection.ack(connection.packets()[0].id!, { ok: true, result: 'ciphertext' });
+            await expect(retry).resolves.toEqual({ content: 'decoded' });
+            expect(connection.packets()).toHaveLength(1);
+        });
+
+        it(`${scope}: rejects a browser going offline during encryption before registering a command ACK`, async () => {
+            connection.connect();
+            vi.stubGlobal('navigator', { onLine: true });
+            let finish!: (value: string) => void;
+            crypt.encryptRaw.mockReturnValueOnce(new Promise<string>(resolve => { finish = resolve; }));
+            const pending = call();
+            const rejected = expect(pending).rejects.toThrow('网络已离线，请恢复连接后重试');
+            vi.stubGlobal('navigator', { onLine: false });
+            finish('encrypted-params');
+            await rejected;
+            expect(connection.packets()).toEqual([]);
+            expect(connection.acks()).toEqual([]);
         });
 
         it(`${scope}: rejects if the transport disconnects during asynchronous encryption`, async () => {

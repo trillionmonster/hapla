@@ -8,6 +8,8 @@ import { Typography } from '@/constants/Typography';
 import { openWorkspaceTerminal, type WorkspaceTerminal } from '@/utils/workspaceTerminal';
 import { useSession } from '@/sync/storage';
 
+import { terminalKeyHandler } from './terminalKeyboard';
+
 const POLL_INTERVAL_MS = 60;
 
 export default function CoderTerminalPanel(props: {
@@ -42,6 +44,7 @@ export default function CoderTerminalPanel(props: {
         let resizeTimer: ReturnType<typeof setTimeout> | null = null;
         let inputTimer: ReturnType<typeof setTimeout> | null = null;
         let inputBuffer = '';
+        let inputWrites: Promise<void> = Promise.resolve();
         let resizeObserver: ResizeObserver | null = null;
         let terminal: import('@xterm/xterm').Terminal | null = null;
         let connection: WorkspaceTerminal | undefined;
@@ -53,7 +56,8 @@ export default function CoderTerminalPanel(props: {
             inputBuffer = '';
             if (!connection || !data || disposed) return;
             try {
-                await connection.write(data);
+                inputWrites = inputWrites.then(() => connection!.write(data));
+                await inputWrites;
             } catch (nextError) {
                 if (!disposed) {
                     setError(nextError instanceof Error ? nextError.message : 'Failed to write to terminal');
@@ -146,6 +150,8 @@ export default function CoderTerminalPanel(props: {
                 connection = started;
                 setStatus('ready');
                 terminal.focus();
+
+                terminal.attachCustomKeyEventHandler?.(terminalKeyHandler(terminal, typeof navigator === 'undefined' ? undefined : navigator.clipboard));
 
                 terminal.onData((data) => {
                     inputBuffer += data;

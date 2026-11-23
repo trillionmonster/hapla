@@ -1,3 +1,4 @@
+import { codexInputStateSchema, codexSideChatSchema } from '@hapla/wire';
 import { z } from "zod";
 import { CodexRuntimeStateSchema } from '@hapla/wire';
 import type { CodexPreferences } from './codexPreferences';
@@ -91,6 +92,8 @@ export const RequestProtocolSchema = z.object({
 });
 
 export const AgentStateSchema = z.object({
+    codexInputs: codexInputStateSchema.optional(),
+    codexSideChats: z.array(codexSideChatSchema).optional(),
     codexRuntime: CodexRuntimeStateSchema.nullish(),
     controlledByUser: z.boolean().nullish(),
     requests: z.record(z.string(), z.object({

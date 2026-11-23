@@ -15,6 +15,8 @@ import { db } from "@/storage/db";
 import { authenticateSocket } from "./socket/authenticateSocket";
 import { startAsrNamespace } from './socket/asrHandler';
 
+import { previewBroker } from '@/app/preview/previewBroker';
+
 export function startSocket(app: Fastify) {
     const io = new Server(app.server, {
         cors: {
@@ -30,10 +32,12 @@ export function startSocket(app: Fastify) {
         allowUpgrades: true,
         upgradeTimeout: 10000,
         connectTimeout: 20000,
+        destroyUpgrade: false,
         serveClient: false, // Don't serve the client files
     });
 
     startAsrNamespace(io);
+    previewBroker.start(io);
 
     // Initialize event router with Socket.IO server instance
     eventRouter.init(io);

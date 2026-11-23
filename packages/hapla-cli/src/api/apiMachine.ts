@@ -1,3 +1,4 @@
+import { connectPreviewTunnel } from './previewTunnel';
 /**
  * WebSocket client for machine/daemon communication with the Hapla server
  * Similar to ApiSessionClient but for machine-scoped connections
@@ -102,6 +103,7 @@ export class ApiMachineClient {
     private lastKnownCodexVersion: string | null | undefined;
     private lastKnownClaudeVersion: string | null | undefined;
     private capabilityRefreshInFlight: Promise<void> | null = null;
+    private stopPreviewTunnel: (() => void) | undefined;
     private codexUpdater: CodexUpdateController | null = null;
     private rpcHandlerManager: RpcHandlerManager;
     private readonly workspaceRoot = resolveMachineWorkspaceRoot();
@@ -400,6 +402,8 @@ export class ApiMachineClient {
     }
 
     connect() {
+        this.stopPreviewTunnel?.();
+        this.stopPreviewTunnel = connectPreviewTunnel(configuration.serverUrl, this.token, this.machine.id);
         const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
@@ -610,6 +614,7 @@ export class ApiMachineClient {
 
     shutdown() {
         logger.debug('[API MACHINE] Shutting down');
+        this.stopPreviewTunnel?.();
         this.stopKeepAlive();
         if (this.reconnectInterval) {
             clearInterval(this.reconnectInterval);

@@ -8,7 +8,7 @@ export function PendingRequestsPanel({ session }: { session: Session }) {
     const { theme } = useUnistyles();
     const threadId = session.metadata?.codexThreadId;
     const requests = Object.entries(session.agentState?.requests ?? {}).filter(([id, request]) =>
-        !session.agentState?.completedRequests?.[id] && (!request.protocol?.threadId || !threadId || request.protocol.threadId === threadId));
+        !session.agentState?.completedRequests?.[id] && (!request.protocol?.threadId || !threadId || request.protocol.threadId === threadId || session.agentState?.codexSideChats?.some(chat => chat.threadId === request.protocol?.threadId)));
     if (!requests.length) return null;
     return <View style={{ maxHeight: 340, borderTopWidth: 1, borderTopColor: theme.colors.divider }}>
         <Text accessibilityLiveRegion="polite" style={{ padding: 8, color: theme.colors.text, fontWeight: '600' }}>等待你的选择 · {requests.length}</Text>

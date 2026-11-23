@@ -16,8 +16,8 @@ interface ClientLabels {
     client_type: string;
 }
 
-function parseClientLabels(raw: string | undefined | null): ClientLabels {
-    if (!raw) return { client: 'unknown', client_type: 'unknown' };
+function parseClientLabels(raw: unknown): ClientLabels {
+    if (typeof raw !== 'string' || !raw) return { client: 'unknown', client_type: 'unknown' };
     const type = raw.split('/')[0].toLowerCase();
     return { client: raw, client_type: type };
 }
@@ -27,7 +27,7 @@ function parseClientLabels(raw: string | undefined | null): ClientLabels {
  * Spread into any metric .inc() / .observe() call.
  */
 export function getMetricsLabelsFromSocket(socket: Socket): ClientLabels {
-    return parseClientLabels(socket.data.haplaClient as string);
+    return parseClientLabels(socket.data.haplaClient);
 }
 
 /**
@@ -36,7 +36,7 @@ export function getMetricsLabelsFromSocket(socket: Socket): ClientLabels {
  */
 export function getMetricsLabelsFromRequest(request: { headers: Record<string, string | string[] | undefined> }): ClientLabels {
     return parseClientLabels(
-        request.headers['x-hapla-client'] as string,
+        request.headers['x-hapla-client'],
     );
 }
 

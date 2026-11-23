@@ -1293,17 +1293,20 @@ export class CodexAppServerClient {
 
     /** Fork the active Codex thread and make the returned branch active. */
     async forkThread(opts?: {
+        sourceThreadId?: string;
+        deferGoalContinuation?: boolean;
         lastTurnId?: string;
         model?: string;
         cwd?: string;
     }): Promise<{ threadId: string; model: string; forkedFromId: string }> {
         if (this.commandCleanups.size) throw new Error('Finish native command interruption before switching Codex threads');
-        const sourceThreadId = this._threadId;
+        const sourceThreadId = opts?.sourceThreadId ?? this._threadId;
         if (!sourceThreadId) throw new Error('No active thread is available to fork.');
         const selection = ++this.threadSelection;
         const defaults = this.threadDefaults ?? {};
         const result = await this.request('thread/fork', {
             threadId: sourceThreadId,
+            ...(opts?.deferGoalContinuation ? { deferGoalContinuation: true } : {}),
             lastTurnId: opts?.lastTurnId ?? null,
             model: opts?.model ?? defaults.model ?? null,
             cwd: opts?.cwd ?? defaults.cwd ?? process.cwd(),

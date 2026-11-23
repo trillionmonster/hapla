@@ -14,8 +14,9 @@ import { z } from "zod";
 import { logger } from "@/ui/logger";
 import { ApiSessionClient } from "@/api/apiSession";
 import { randomUUID } from "node:crypto";
+import { listDevelopmentPreviews, registerDevelopmentPreview } from '@/api/developmentPreviews';
 
-function createMcpServer(handler: (title: string) => Promise<{ success: boolean; error?: string }>): McpServer {
+function createMcpServer(handler: (title: string) => Promise<{ success: boolean; error?: string }>, client: ApiSessionClient): McpServer {
     const mcp = new McpServer({
         name: "Hapla MCP",
         version: "1.0.0",
@@ -54,6 +55,21 @@ function createMcpServer(handler: (title: string) => Promise<{ success: boolean;
         }
     });
 
+    mcp.registerTool('register_web_preview', {
+        title: 'Register Development Preview',
+        description: 'Register a live HTTP(S) service reachable from this workbench. Reusing the same name updates its target while keeping the URL handle. Access is restricted to the current Hapla account. Present the returned relative URL as a Markdown link; Hapla resolves it using the actual browser host and port.',
+        inputSchema: { target: z.string().max(4096), name: z.string().min(1).max(100), handle: z.string().regex(/^[a-f0-9]{32}$/).optional() },
+    }, async input => {
+        try {
+            const machineId = client.getMetadata?.()?.machineId;
+            if (!machineId) throw new Error('会话尚未关联工作台');
+            return { content: [{ type: 'text', text: JSON.stringify(await registerDevelopmentPreview({ token: client.authToken, machineId }, input)) }] };
+        } catch (error) { return { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : '代理注册失败' }] }; }
+    });
+    mcp.registerTool('list_web_previews', { title: 'List Development Previews', description: 'List the current Hapla account’s persistent development preview handles.', inputSchema: {} }, async () => {
+        try { return { content: [{ type: 'text', text: JSON.stringify((await listDevelopmentPreviews(client.authToken)).map(item => ({ ...item, url: `/preview/${item.handle}/` }))) }] }; }
+        catch (error) { return { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : '无法读取开发代理' }] }; }
+    });
     return mcp;
 }
 
@@ -75,7 +91,7 @@ export async function startHaplaServer(client: ApiSessionClient) {
     };
 
     const server = createServer(async (req, res) => {
-        const mcp = createMcpServer(handler);
+        const mcp = createMcpServer(handler, client);
         try {
             const transport = new StreamableHTTPServerTransport({
                 sessionIdGenerator: undefined
@@ -106,7 +122,7 @@ export async function startHaplaServer(client: ApiSessionClient) {
 
     return {
         url: baseUrl.toString(),
-        toolNames: ['change_title'],
+        toolNames: ['change_title', 'register_web_preview', 'list_web_previews'],
         stop: () => {
             logger.debug(`[haplaMCP] server:stop sessionId=${client.sessionId}`);
             server.close();

@@ -5,6 +5,36 @@ Cloudflare is optional. The repository contains an external-file-service adapter
 an experimental download Worker, and a bucket CORS example; these are separate
 configuration surfaces.
 
+## Optional HTTPS entry with Cloudflare Tunnel
+
+A dedicated, remotely managed Cloudflare Tunnel can expose the existing Hapla
+Web entry under an HTTPS hostname. Point its public hostname route at the local
+Web listener, for example `http://127.0.0.1:12345`, and end the ingress list with
+`http_status:404`. Add a proxied CNAME for the chosen hostname pointing to the
+named tunnel. Keep the Server, workers and database on their existing private
+connections; the public Web entry proxies APIs, Socket.IO and `/preview/`.
+
+Keep the connector in its own deployment and store its run token in a private
+file mounted read-only. Do not put tokens in Compose command arguments or reuse
+another application's tunnel configuration. Inspect existing DNS records and
+save rollback state before publishing the new entry.
+
+Preserve the external `Host` and forwarded HTTPS scheme. The maintained Nginx
+configuration uses relative redirects to retain external ports and TLS through
+multiple forwarding layers. Validate the actual public hostname in a browser:
+sign in to the original account, open existing history, verify live WebSocket
+frames, and exercise preview login links, form POSTs, cookies, root assets, SSE
+and WebSockets. A healthy connector alone does not establish application access.
+
+Browser credentials are scoped to an origin. A new hostname requires signing in
+to the existing account; do not transfer recovery keys in public URLs or DNS
+records. Keep the old entry available while clients migrate. Public URLs in
+installation-specific worker/service configuration can point to the new HTTPS
+hostname while private relay URLs remain local; existing jobs need no restart.
+
+See [Tunnel setup](https://developers.cloudflare.com/tunnel/get-started/) and
+[tunnel tokens](https://developers.cloudflare.com/tunnel/reference/tunnel-tokens/).
+
 ## External R2 file service
 
 The public file path uses a separately operated service with `/v1/upload` and

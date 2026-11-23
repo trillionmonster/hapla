@@ -125,7 +125,7 @@ export const WebChatList = React.memo((props: Props) => {
         return { rows, trimmed, metadata: props.metadata, mode: props.workspaceMode,
             ordinals: new Map(messages.filter((message) => message.kind === 'user-text')
                 .map((message) => [message.id, getUserMessageOrdinal(messages, message.id)])) };
-    }, [incomingRows, props.metadata, props.workspaceMode, props.conversationSessionIds, forceLatest, props.hasNewer, props.isLoadingLatest]);
+    }, [incomingRows, props.metadata, props.workspaceMode, props.conversationSessionIds, forceLatest, props.hasNewer, props.isLoadingLatest, awayFromBottom]);
     React.useLayoutEffect(() => {
         if (snapshot.mode === 'normal') {
             normalRows.current = snapshot.rows;
@@ -147,7 +147,8 @@ export const WebChatList = React.memo((props: Props) => {
     const readingWindow = snapshot.mode === 'normal'
         ? [...snapshot.rows, ...incomingRows.filter((row) => !isVisibleChatMessage(row.message, 'normal'))]
         : incomingRows;
-    const heldWindow = committed.current.mode === snapshot.mode
+    const heldWindow = (position.current?.distanceFromBottom ?? 0) > 48
+        && committed.current.mode === snapshot.mode
         && shouldHoldReadingWindow(artifactAnchorRow(displayedTimeline.current, position.current?.anchorId)?.key ?? position.current?.anchorId,
             committed.current.rows, readingWindow);
     const disjointWindow = heldWindow && !committed.current.rows.some((row) => snapshot.rows.some((next) => next.key === row.key));
@@ -173,7 +174,7 @@ export const WebChatList = React.memo((props: Props) => {
         reconsiderReadingWindow(next.anchorId);
         const away = next.distanceFromBottom > 48;
         setAwayFromBottom(away);
-        if (!away) setNewMessageCount(0);
+        if (!away) { setNewMessageCount(0); windowDirection.current = 'newest'; }
         const row = artifactAnchorRow(timeline, next.anchorId);
         if (!away) savedPosition.current = { offset: 0, branchId };
         else if (row?.seq !== undefined) savedPosition.current = {
@@ -291,6 +292,13 @@ export const WebChatList = React.memo((props: Props) => {
             }
         }
     }, [hasNewer, isLoadingOlder, props.conversationSessionIds, props.sessionId]);
+    React.useEffect(() => {
+        // Reaching the tail resumes live following, including a historical
+        // window retained after a reconnect. Initial restored anchors still
+        // keep their saved position.
+        if (position.current && position.current.distanceFromBottom <= 48 && hasNewer
+            && !interacting && !isLoadingOlder && !forceLatest && !latestError) void scrollToLatest();
+    }, [awayFromBottom, hasNewer, interacting, isLoadingOlder, forceLatest, latestError, scrollToLatest]);
     const previousLatestRequest = React.useRef(props.latestRequest);
     React.useEffect(() => {
         if (previousLatestRequest.current === props.latestRequest) return;

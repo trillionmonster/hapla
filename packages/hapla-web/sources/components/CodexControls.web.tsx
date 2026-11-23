@@ -7,12 +7,12 @@ const effortLabels: Record<string, string> = { default: '默认', none: '不思�
 export function CodexControls(props: CodexControlsProps) {
     const { theme } = useUnistyles();
     const serviceTier = resolveCodexServiceTier(props.preferences.serviceTier, props.serviceTiers ?? []);
-    const style: React.CSSProperties = { minHeight: 40, width: 112, flexShrink: 0, background: theme.colors.surface, color: theme.colors.text, border: `1px solid ${theme.colors.divider}`, borderRadius: 8, padding: '6px 8px', fontSize: theme.typography.label.fontSize };
+    const style: React.CSSProperties = { minHeight: 32, width: 112, flexShrink: 0, background: theme.colors.surface, color: theme.colors.text, border: `1px solid ${theme.colors.divider}`, borderRadius: 8, padding: '6px 8px', fontSize: 13 };
     const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 };
-    const explanation = (title: string, hint: string) => <span style={{ minWidth: 0 }}><span style={{ display: 'block', color: theme.colors.text, fontSize: theme.typography.label.fontSize }}>{title}</span><span style={{ display: 'block', marginTop: 3, fontSize: theme.typography.caption.fontSize, lineHeight: `${theme.typography.caption.lineHeight}px` }}>{hint}</span></span>;
+    const explanation = (title: string, hint: string) => <span style={{ minWidth: 0 }}><span style={{ display: 'block', color: theme.colors.text, fontSize: 13 }}>{title}</span><span style={{ display: 'block', marginTop: 3, fontSize: 12, lineHeight: '17px' }}>{hint}</span></span>;
     const fast = props.serviceTiers?.includes('fast') || props.serviceTiers?.includes('priority');
-    return <div role="group" aria-label="Codex 设置" style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px', fontSize: theme.typography.caption.fontSize, color: theme.colors.textSecondary, borderBottom: `1px solid ${theme.colors.divider}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong style={{ color: theme.colors.text, fontSize: theme.typography.label.fontSize }}>回复设置</strong><span>下一条消息生效</span></div>
+    return <div role="group" aria-label="Codex 设置" style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px', fontSize: 12, color: theme.colors.textSecondary, borderBottom: `1px solid ${theme.colors.divider}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong style={{ color: theme.colors.text, fontSize: 13 }}>回复设置</strong><span>下一条消息生效</span></div>
         <label style={labelStyle}>{explanation('工作模式', '执行：直接做；规划：先给方案。')}<select aria-label="Codex 工作模式" style={style} value={props.preferences.collaborationMode} onChange={event => props.onChange({ ...props.preferences, collaborationMode: event.target.value as 'default' | 'plan' })}>
             <option value="default">执行</option><option value="plan">规划</option>
         </select></label>

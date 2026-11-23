@@ -34,6 +34,16 @@ Hapla uses the official stdio JSONL App Server transport. Compatibility has two 
 | `thread/fork` and branch switching | Supported | A persisted sibling thread is created and the selected thread is resumed before future turns |
 | Unknown future notifications | Lossless fallback | Forwarded with method and params instead of being dropped |
 
+## Follow-up controls
+
+`turn/steer` targets the expected active turn without canceling it. Independent
+queued inputs are durable and editable in Hapla. BTW uses its own App Server
+connection and a forked thread, with copied goals cleared before its read-only
+turn; side cancellation is scoped independently of main permissions and turns.
+Explicit stop and stop-and-send validate the captured runtime identity. See the
+[Web interaction guide](web-interaction-features.md) for the controls, queue
+recovery behavior, commands, and branch semantics.
+
 ## Server requests
 
 | Request | Status | Notes |

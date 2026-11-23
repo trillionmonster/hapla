@@ -88,8 +88,8 @@ packages/hapla-web/.export-staging-*/
 *.db-shm
 
 # Build backups, local caches and reports
-/packages/hapla-cli/dist-before-*/
-/packages/hapla-cli/dist-stage-*/
+/packages/*/dist-before-*/
+/packages/*/dist-stage-*/
 coverage/
 playwright-report/
 test-results/

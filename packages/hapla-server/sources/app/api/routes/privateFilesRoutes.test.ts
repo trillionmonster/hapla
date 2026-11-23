@@ -172,11 +172,13 @@ describe('private media access', () => {
         const cookie = String(response.headers['set-cookie']);
         expect(cookie).toContain('Path=/files/; HttpOnly; SameSite=Lax');
         expect(cookie).toContain('; Secure');
+        expect(cookie).toContain('hapla_preview_auth=account-b; Path=/preview/; HttpOnly; SameSite=Strict; Secure');
         expect(cookie).not.toContain('Bearer');
         expect(access.accountId(cookie)).toBe('account-b');
         const logout = await app.inject({ method: 'DELETE', url: '/v1/account/media-access', headers: { authorization: 'Bearer account-b' } });
         expect(logout.statusCode).toBe(204);
-        expect(logout.headers['set-cookie']).toContain('Path=/files/; HttpOnly; SameSite=Lax; Max-Age=0');
+        expect(String(logout.headers['set-cookie'])).toContain('Path=/files/; HttpOnly; SameSite=Lax; Max-Age=0');
+        expect(String(logout.headers['set-cookie'])).toContain('hapla_preview_auth=; Path=/preview/; HttpOnly; SameSite=Strict; Max-Age=0');
         await app.close();
     });
 

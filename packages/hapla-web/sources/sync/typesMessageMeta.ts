@@ -1,3 +1,4 @@
+import { codexInterruptTargetSchema } from '@hapla/wire';
 import { z } from 'zod';
 import { asyncUserInputQuestionSchema } from '@hapla/wire';
 
@@ -15,6 +16,9 @@ export const MessageMetaSchema = z.object({
     appendSystemPrompt: z.string().nullable().optional(), // Append to system prompt for this message (null = reset)
     allowedTools: z.array(z.string()).nullable().optional(), // Allowed tools for this message (null = reset)
     disallowedTools: z.array(z.string()).nullable().optional(), // Disallowed tools for this message (null = reset)
+    codexInputId: z.string().optional(),
+  codexInterruptTarget: codexInterruptTargetSchema.optional(),
+  codexFollowupMode: z.enum(['steer', 'queue', 'replace']).optional(),
     displayText: z.string().optional(), // Optional text to display in UI instead of actual message text
     branchId: z.string().optional(),
     streamId: z.string().optional(),

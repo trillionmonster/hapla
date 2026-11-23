@@ -1,4 +1,4 @@
 interface:
   display_name: "Hapla 项目维护"
-  short_description: "维护 Hapla 代码、自托管部署、账号执行器及环境隔离，核验真实运行状态"
-  default_prompt: "使用 $hapla-maintenance 维护当前 Hapla 项目，先定位目标实例并核验配置和运行状态。"
+  short_description: "在 dev-hapla 开发迭代、隔离 Web/Server 端口并在 Docker 内调试 CLI"
+  default_prompt: "使用 $hapla-maintenance 维护当前 Hapla 项目，默认在 dev-hapla 开发迭代；只有我明确声明“正式部署更新hapla”才更新正式部署。"

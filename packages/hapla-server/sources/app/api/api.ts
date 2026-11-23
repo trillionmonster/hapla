@@ -29,6 +29,8 @@ import { enableSiteAccess } from './routes/siteAccessRoutes';
 import { SiteAccess } from '@/app/auth/siteAccess';
 import { auth } from '@/app/auth/auth';
 
+import { previewRoutes } from './routes/previewRoutes';
+
 export async function startApi() {
 
     // Configure
@@ -63,6 +65,7 @@ export async function startApi() {
     externalVideoPreviewRoutes(typed);
     cloudFileRoutes(typed);
     directFileRoutes(typed);
+    previewRoutes(typed);
 
     // Routes
     authRoutes(typed);

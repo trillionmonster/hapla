@@ -8,6 +8,7 @@ export function useGlobalKeyboard(onCommandPalette: () => void) {
         }
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.defaultPrevented || (e.target instanceof Element && e.target.closest('.xterm'))) return;
             // Check for CMD+K (Mac) or Ctrl+K (Windows/Linux)
             const isModifierPressed = e.metaKey || e.ctrlKey;
             

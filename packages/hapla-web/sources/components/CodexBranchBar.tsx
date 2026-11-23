@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from '@/components/StyledText';
@@ -27,6 +27,8 @@ export function CodexBranchBar(props: {
     onError?: (error: unknown) => void;
 }) {
     const { theme } = useUnistyles();
+    const { height } = useWindowDimensions();
+    const compact = Platform.OS === 'web' && height <= 500 && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
     const [switchingBranchId, setSwitchingBranchId] = React.useState<string | null>(null);
     const [verifiedRuntime, setVerifiedRuntime] = React.useState<{ branchId: string; threadId: string } | null>(null);
     const activeVerifiedRuntime = verifiedRuntime?.branchId === props.activeBranchId ? verifiedRuntime : null;
@@ -55,12 +57,12 @@ export function CodexBranchBar(props: {
     if (props.branches.length < 2) return null;
     return (
         <View style={styles.branchPanel} accessibilityLabel={`对话分支，共 ${props.branches.length} 个`}>
-            <View style={styles.branchHeading}>
+            {!compact && <View style={styles.branchHeading}>
                 <Ionicons name="git-branch-outline" size={15} color={theme.colors.textSecondary} />
                 <Text style={styles.branchHeadingText}>对话分支</Text>
                 <Text style={styles.branchCount}>{props.branches.length}</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.branchBar}>
+            </View>}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.branchBar, compact && { paddingTop: 0, paddingBottom: 0 }]}>
                 {props.branches.map((branch, index) => {
                     const selected = branch.id === props.activeBranchId;
                     const isSwitchingHere = branch.id === switchingBranchId;
@@ -108,7 +110,7 @@ export function CodexBranchBar(props: {
                     );
                 })}
             </ScrollView>
-            {activeVerifiedRuntime ? (
+            {activeVerifiedRuntime && !compact ? (
                 <View style={styles.runtimeVerification} accessibilityLabel={`Codex 运行时已验证，线程 ${activeVerifiedRuntime.threadId}`}>
                     <View style={styles.runtimeDot} />
                     <Text style={styles.runtimeVerificationText} numberOfLines={1} ellipsizeMode="middle">

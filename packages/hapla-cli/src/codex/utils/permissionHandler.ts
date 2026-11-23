@@ -260,10 +260,11 @@ export class CodexPermissionHandler extends BasePermissionHandler {
     }
 
     /** Only provider notifications close a submitted request successfully. */
-    observeProtocolEvent(event: EventMsg) {
+    observeProtocolEvent(event: EventMsg, scopeThreadId?: string) {
         const context = event.protocol;
         if (!context) return;
         for (const [id, request] of this.protocolRequests) {
+            if (scopeThreadId && request.protocol.threadId !== scopeThreadId) continue;
             const sameEpoch = request.protocol.epoch === context.epoch;
             if (event.type === 'codex_runtime_started' && !sameEpoch) {
                 this.closeProtocolRequest(id, false, 'Codex runtime restarted');
@@ -279,6 +280,17 @@ export class CodexPermissionHandler extends BasePermissionHandler {
                 this.closeProtocolRequest(id, false, 'Codex request is no longer active');
             }
         }
+    }
+
+    /** Main and side threads share one Web permission router, never one stop scope. */
+    abortThread(threadId: string | null) {
+        if (!threadId) return this.abortAll();
+        for (const [id, request] of this.protocolRequests) if (request.protocol.threadId === threadId) this.submitProtocolRequest(id, { decision: 'abort' });
+    }
+
+    resetThread(threadId: string | null) {
+        if (!threadId) return;
+        for (const [id, request] of [...this.protocolRequests]) if (request.protocol.threadId === threadId) this.closeProtocolRequest(id, false, 'Codex turn ended');
     }
 
     override updateSession(session: ApiSessionClient): void {

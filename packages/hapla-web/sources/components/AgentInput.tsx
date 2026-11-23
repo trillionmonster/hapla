@@ -32,8 +32,11 @@ import {
     WEB_IMAGE_INPUT_ACCEPT,
 } from '@/utils/webImageUpload';
 import { canNavigateInputHistory } from './inputHistory';
-import { VoiceInput, VoiceInputStatus, type VoiceInputFeedback } from './VoiceInput';
-import { CodexControls } from './CodexControls';
+import { VoiceInput, VoiceInputStatus, type VoiceInputFeedback } from './OptionalVoiceInput';
+import { VOICE_INPUT_ENABLED } from './uiFeatures';
+const LazyMobileComposerBar = React.lazy(() => import('./MobileComposerBar').then(module => ({ default: module.MobileComposerBar })));
+const LazyInputHistoryPanel = React.lazy(() => import('./InputHistoryPanel').then(module => ({ default: module.InputHistoryPanel })));
+const LazyCodexControls = React.lazy(() => import('./CodexControls').then(module => ({ default: module.CodexControls })));
 import type { CodexPreferences } from '@/sync/codexPreferences';
 
 export interface PastedImage {
@@ -43,13 +46,14 @@ export interface PastedImage {
 }
 
 interface AgentInputProps {
+    followupControls?: React.ReactNode;
     codexPreferences?: CodexPreferences;
     onCodexPreferencesChange?: (preferences: CodexPreferences) => void;
     value: string;
     placeholder: string;
     onChangeText: (text: string) => void;
     sessionId?: string;
-    onSend: () => void;
+    onSend: (delivery?: import('./CodexFollowupControls').ComposerDelivery) => void;
     sendIcon?: React.ReactNode;
     permissionMode?: PermissionMode | null;
     availableModes?: PermissionMode[];
@@ -149,6 +153,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         bottom: '100%',
         left: 0,
         right: 0,
+        maxWidth: 420,
         marginBottom: 8,
         zIndex: 1000,
     },
@@ -182,7 +187,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingVertical: 6,
         backgroundColor: 'transparent',
     },
     selectionItemPressed: {
@@ -210,7 +215,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         backgroundColor: theme.colors.radio.dot,
     },
     selectionLabel: {
-        fontSize: theme.typography.label.fontSize,
+        fontSize: 13,
         ...Typography.default(),
     },
     selectionLabelActive: {
@@ -330,7 +335,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const hasText = props.value.trim().length > 0;
     const hasImages = (props.images?.length ?? 0) > 0;
     const hasContent = hasText || hasImages || (props.attachmentCount ?? 0) > 0;
-    const isMobileWeb = Platform.OS === 'web' && screenWidth <= 700;
+    const isMobileWeb = Platform.OS === 'web' && (screenWidth <= 700 || (screenWidth <= 1180 && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches));
     // Force the icon-only image button (kept inline with other action buttons) on every platform.
     // The previous "prominent" mobile-web variant lived in its own row, which users disliked.
     const showProminentMobileWebImageButton = false;
@@ -604,6 +609,16 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     // Settings modal state
     const [showSettings, setShowSettings] = React.useState(false);
+    React.useEffect(() => {
+        if (Platform.OS !== 'web' || (!showSettings && !showInputHistory)) return;
+        const dismiss = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault(); event.stopImmediatePropagation();
+            setShowSettings(false); setShowInputHistory(false);
+        };
+        document.addEventListener('keydown', dismiss, true);
+        return () => document.removeEventListener('keydown', dismiss, true);
+    }, [showSettings, showInputHistory]);
 
     // Handle settings button press
     const handleSettingsPress = React.useCallback(() => {
@@ -681,8 +696,15 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
             }
         }
 
+        if (event.key === 'Escape' && (showSettings || showInputHistory)) {
+            setShowSettings(false); setShowInputHistory(false); return true;
+        }
+        if (event.key === 'Tab' && !event.shiftKey && props.showAbortButton && hasContent && !props.isSending && suggestions.length === 0) {
+            props.onSend('queue'); return true;
+        }
+        // An Escape inside a draft must not accidentally cancel the task.
         // Handle Escape for abort when no suggestions are visible
-        if (event.key === 'Escape' && props.showAbortButton && props.onAbort && !isAborting) {
+        if (event.key === 'Escape' && !hasContent && props.showAbortButton && props.onAbort && !isAborting) {
             handleAbortPress();
             return true;
         }
@@ -720,7 +742,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
         }
         return false; // Key was not handled
-    }, [suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, isAborting, handleAbortPress, navigateInputHistory, agentInputEnterToSend, props.value, props.onSend, props.onPermissionModeChange, availableModes, permissionModeKey, props.isSendDisabled, props.isSending, voiceBusy, hasContent]);
+    }, [showSettings, showInputHistory, suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, isAborting, handleAbortPress, navigateInputHistory, agentInputEnterToSend, props.value, props.onSend, props.onPermissionModeChange, availableModes, permissionModeKey, props.isSendDisabled, props.isSending, voiceBusy, hasContent]);
 
     const connectionStatusParts = React.useMemo(() => {
         const segments = props.connectionStatus?.text.split(' · ') ?? [];
@@ -736,7 +758,8 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     return (
         <View style={[
             styles.container,
-            { paddingHorizontal: screenWidth > 700 ? 12 : 8 }
+            { paddingHorizontal: isMobileWeb ? 8 : 12 },
+            isMobileWeb && { paddingTop: 6, paddingBottom: 8 }
         ]}>
             <View style={[
                 styles.innerContainer,
@@ -760,54 +783,19 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                     </View>
                 )}
 
-                {showInputHistory && (props.inputHistory?.length ?? 0) > 0 && (
+                {showInputHistory && props.sessionId && (
                     <>
                         <TouchableWithoutFeedback onPress={() => setShowInputHistory(false)}>
                             <View style={styles.overlayBackdrop} />
                         </TouchableWithoutFeedback>
                         <View style={styles.settingsOverlay}>
-                            <FloatingOverlay maxHeight={320} keyboardShouldPersistTaps="always">
-                                <View style={{ paddingVertical: 8 }}>
-                                    <Text style={{
-                                        paddingHorizontal: 16,
-                                        paddingVertical: 6,
-                                        color: theme.colors.textSecondary,
-                                        fontSize: theme.typography.caption.fontSize,
-                                        fontWeight: '600',
-                                        ...Typography.default('semiBold'),
-                                    }}>
-                                        Recent inputs
-                                    </Text>
-                                    {props.inputHistory?.slice(0, 12).map((entry, index) => (
-                                        <Pressable
-                                            key={`${index}:${entry}`}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={`Use recent input ${index + 1}`}
-                                            onPress={() => {
-                                                historyIndexRef.current = index;
-                                                historyDraftRef.current = props.value;
-                                                setInputFromHistory(entry);
-                                                setShowInputHistory(false);
-                                                inputRef.current?.focus();
-                                                hapticsLight();
-                                            }}
-                                            style={({ pressed }) => ({
-                                                paddingHorizontal: 16,
-                                                paddingVertical: 10,
-                                                backgroundColor: pressed ? theme.colors.surfacePressed : 'transparent',
-                                            })}
-                                        >
-                                            <Text numberOfLines={2} style={{
-                                                color: theme.colors.text,
-                                                fontSize: theme.typography.label.fontSize,
-                                                lineHeight: theme.typography.label.lineHeight,
-                                                ...Typography.default(),
-                                            }}>
-                                                {entry}
-                                            </Text>
-                                        </Pressable>
-                                    ))}
-                                </View>
+                            <FloatingOverlay accessibilityLabel="历史问题面板" maxHeight={320} keyboardShouldPersistTaps="always">
+                                {props.sessionId ? <React.Suspense fallback={<ActivityIndicator size="small" />}><LazyInputHistoryPanel sessionId={props.sessionId} recent={props.inputHistory ?? []} onSelect={text => {
+                                    historyDraftRef.current = props.value;
+                                    setInputFromHistory(text);
+                                    setShowInputHistory(false);
+                                    inputRef.current?.focus();
+                                }} /></React.Suspense> : null}
                             </FloatingOverlay>
                         </View>
                     </>
@@ -823,9 +811,9 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             styles.settingsOverlay,
                             { paddingHorizontal: screenWidth > 700 ? 0 : 8 }
                         ]}>
-                            <FloatingOverlay maxHeight={400} keyboardShouldPersistTaps="always">
-                                {hasCodexControls && <CodexControls preferences={props.codexPreferences!} onChange={props.onCodexPreferencesChange!}
-                                    efforts={availableEffortLevels} effort={props.effortLevel} onEffortChange={props.onEffortLevelChange} serviceTiers={props.modelMode?.supportedServiceTiers} />}
+                            <FloatingOverlay accessibilityLabel="会话设置面板" maxHeight={400} keyboardShouldPersistTaps="always">
+                                {hasCodexControls && <React.Suspense fallback={<ActivityIndicator size="small" />}><LazyCodexControls preferences={props.codexPreferences!} onChange={props.onCodexPreferencesChange!}
+                                    efforts={availableEffortLevels} effort={props.effortLevel} onEffortChange={props.onEffortLevelChange} serviceTiers={props.modelMode?.supportedServiceTiers} /></React.Suspense>}
                                 {/* Permission Mode Section */}
                                 <View style={styles.overlaySection}>
                                     <Text style={styles.overlaySectionTitle}>
@@ -867,7 +855,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={{
-                                                        fontSize: theme.typography.label.fontSize,
+                                                        fontSize: 13,
                                                         color: isSelected ? theme.colors.radio.active : theme.colors.text,
                                                         ...Typography.default()
                                                     }}>
@@ -949,7 +937,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                     </View>
                                                     <View style={{ flex: 1, minWidth: 0 }}>
                                                         <Text style={{
-                                                            fontSize: theme.typography.label.fontSize,
+                                                            fontSize: 13,
                                                             color: isSelected ? theme.colors.radio.active : theme.colors.text,
                                                             ...Typography.default()
                                                         }}>
@@ -1041,7 +1029,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                         </View>
                                                         <View style={{ flex: 1, minWidth: 0 }}>
                                                             <Text style={{
-                                                                fontSize: theme.typography.label.fontSize,
+                                                                fontSize: 13,
                                                                 color: isSelected ? theme.colors.radio.active : theme.colors.text,
                                                                 ...Typography.default()
                                                             }}>
@@ -1069,7 +1057,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 )}
 
                 {/* Connection status, context warning, and permission mode */}
-                {(props.connectionStatus || contextWarning || (displayPermissionMode && permissionModeKey !== 'default')) && (
+                {(contextWarning || (!isMobileWeb && (props.connectionStatus || (displayPermissionMode && permissionModeKey !== 'default')))) && (
                     <View style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -1079,7 +1067,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         minHeight: 20, // Fixed minimum height to prevent jumping
                     }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, gap: 11 }}>
-                            {props.connectionStatus && (
+                            {props.connectionStatus && !isMobileWeb && (
                                 <>
                                     <View
                                         style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1, minWidth: 0, gap: 5 }}
@@ -1175,7 +1163,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             )}
                         </View>
                         {/* Permission badge — only shown when non-default */}
-                        {displayPermissionMode && permissionModeKey !== 'default' && (() => {
+                        {!isMobileWeb && displayPermissionMode && permissionModeKey !== 'default' && (() => {
                             const permColor = isSandboxedYoloMode ? '#4169E1' :
                                 permissionModeKey === 'acceptEdits' ? theme.colors.permission.acceptEdits :
                                     permissionModeKey === 'bypassPermissions' ? theme.colors.permission.bypass :
@@ -1287,7 +1275,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 )}
 
                 {/* Box 2: Action Area (Input + Send) */}
-                <View style={styles.unifiedPanel}>
+                <View style={[styles.unifiedPanel, isMobileWeb && { borderRadius: 18, overflow: 'visible', backgroundColor: theme.dark ? '#242628' : '#ffffff', borderColor: theme.dark ? '#3c3f43' : '#d6dce3', paddingBottom: 4, paddingHorizontal: 5 }]}>
                     {showProminentMobileWebImageButton && (
                         <View style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: hasImages ? 0 : 4 }}>
                             <Pressable
@@ -1312,7 +1300,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     color={theme.colors.button.secondary.tint}
                                 />
                                 <Text style={{
-                                    fontSize: theme.typography.label.fontSize,
+                                    fontSize: 13,
                                     color: theme.colors.text,
                                     fontWeight: '600',
                                     ...Typography.default('semiBold'),
@@ -1353,7 +1341,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         </View>
                     )}
                     {props.attachmentPreview}
-                    <VoiceInputStatus feedback={voiceFeedback} />
+                    {VOICE_INPUT_ENABLED && <VoiceInputStatus feedback={voiceFeedback} />}
                     {/* Input field */}
                     <View style={[styles.inputContainer, props.minHeight ? { minHeight: props.minHeight } : undefined]}>
                         <MultiTextInput
@@ -1370,6 +1358,16 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         />
                     </View>
 
+                    {isMobileWeb ? <React.Suspense fallback={null}><LazyMobileComposerBar
+                        sessionId={props.sessionId} controls={props.followupControls} hasContent={hasContent}
+                        sending={props.isSending} canSend={canPressSendButton} aborting={isAborting}
+                        status={props.connectionStatus?.text} onSend={handleSendPress}
+                        onAbort={props.onAbort && props.showAbortButton ? handleAbortPress : undefined}
+                        onSettings={handleSettingsPress}
+                        onHistory={props.sessionId ? () => { hapticsLight(); setShowSettings(false); setShowInputHistory(visible => !visible); } : undefined}
+                        onFiles={props.onPickFiles} onImages={props.onPasteImages ? handlePickImages : undefined}
+                        onWorkspace={props.onFileViewerPress}
+                    /></React.Suspense> : <>
                     {/* Action buttons below input */}
                     <View style={styles.actionButtonsContainer}>
                         <View style={{ flexDirection: 'column', flex: 1, gap: 2 }}>
@@ -1377,10 +1375,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <View style={[styles.actionButtonsLeft, isMobileWeb && { gap: 0, flexWrap: 'wrap' }]}>
 
-                                {(props.inputHistory?.length ?? 0) > 0 && (
+                                {props.sessionId && (
                                     <Pressable
                                         accessibilityRole="button"
-                                        accessibilityLabel="Recent inputs"
+                                        accessibilityLabel="当前会话全部历史问题"
                                         onPress={() => {
                                             hapticsLight();
                                             setShowSettings(false);
@@ -1434,8 +1432,8 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     </Pressable>
                                 )}
 
-                                <VoiceInput value={props.value} onChangeText={props.onChangeText} onBusyChange={setVoiceBusy}
-                                    onFeedbackChange={setVoiceFeedback} scope={props.historyKey ?? props.sessionId} />
+                                {VOICE_INPUT_ENABLED && <VoiceInput value={props.value} onChangeText={props.onChangeText} onBusyChange={setVoiceBusy}
+                                    onFeedbackChange={setVoiceFeedback} scope={props.historyKey ?? props.sessionId} />}
 
                                 {/* Settings button */}
                                 {(props.onPermissionModeChange || hasCodexControls) && (
@@ -1505,11 +1503,11 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 )}
 
                                 {/* Abort button */}
-                                {props.onAbort && (
+                                {props.onAbort && props.showAbortButton && (
                                     <Shaker ref={shakerRef}>
                                         <Pressable
                                             accessibilityRole="button"
-                                            accessibilityLabel="Stop current response"
+                                            accessibilityLabel="停止当前任务"
                                             style={(p) => ({
                                                 flexDirection: 'row',
                                                 alignItems: 'center',
@@ -1534,9 +1532,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                 <Ionicons
                                                     name="stop"
                                                     size={16}
-                                                    color={theme.colors.button.secondary.tint}
+                                                    color={theme.colors.textDestructive}
                                                 />
                                             )}
+                                            <Text style={{ color: theme.colors.textDestructive, fontSize: 12, marginLeft: 4 }}>停止任务</Text>
                                         </Pressable>
                                     </Shaker>
                                 )}
@@ -1600,6 +1599,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             </View>
                         </View>
                     </View>
+                    </>}
                 </View>
             </View>
         </View>

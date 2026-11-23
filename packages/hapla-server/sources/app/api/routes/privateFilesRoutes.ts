@@ -22,12 +22,12 @@ function secure(request: FastifyRequest): boolean {
 export function privateFilesRoutes(app: Fastify, access: MediaAccess) {
     app.post('/v1/account/media-access', { preHandler: app.authenticate }, async (request, reply) => {
         return reply.header('Cache-Control', 'no-store')
-            .header('Set-Cookie', access.issueCookie(request.userId, secure(request)))
+            .header('Set-Cookie', [access.issueCookie(request.userId, secure(request)), `hapla_preview_auth=${encodeURIComponent(request.headers.authorization!.slice(7))}; Path=/preview/; HttpOnly; SameSite=Strict${secure(request) ? '; Secure' : ''}`])
             .code(204).send();
     });
     app.delete('/v1/account/media-access', { preHandler: app.authenticate }, async (request, reply) => {
         return reply.header('Cache-Control', 'no-store')
-            .header('Set-Cookie', access.clearCookie(secure(request)))
+            .header('Set-Cookie', [access.clearCookie(secure(request)), `hapla_preview_auth=; Path=/preview/; HttpOnly; SameSite=Strict; Max-Age=0${secure(request) ? '; Secure' : ''}`])
             .code(204).send();
     });
 

@@ -132,6 +132,23 @@ describe('WebChatList reading lifecycle', () => {
         root = undefined;
     });
 
+    it('keeps the live tail visible when a reconnect replaces the entire raw window', async () => {
+        await render({ workspaceMode: 'coder' });
+        await act(async () => { fixture.viewport!.onPosition!({ anchorId: rowKey('message-1'), distanceFromBottom: 0, scrollTop: 200 }); });
+        await render({ messages: [textMessage(90), textMessage(91)] });
+        expect(renderedIds()).toEqual(['message-90', 'message-91']);
+        expect(fixture.returnToLatest).not.toHaveBeenCalled();
+    });
+
+    it('resumes latest synchronization when the reader reaches the bottom of a historical window', async () => {
+        await render();
+        await positionAt('message-1');
+        await render({ hasNewer: true });
+        expect(fixture.returnToLatest).not.toHaveBeenCalled();
+        await act(async () => { fixture.viewport!.onPosition!({ anchorId: rowKey('message-2'), distanceFromBottom: 0, scrollTop: 200 }); });
+        expect(fixture.returnToLatest).toHaveBeenCalledExactlyOnceWith(['session'], 'session');
+    });
+
     it('keeps current rendered rows through a touch response and commits the older page after release', async () => {
         await render();
         await positionAt('message-1');

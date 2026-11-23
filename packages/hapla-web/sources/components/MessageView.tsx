@@ -199,6 +199,7 @@ function UserTextBlock(props: {
         </View>
         <View style={styles.userMessageFooter}>
           <MessageTimestamp createdAt={props.message.createdAt} label="提问" />
+          {props.message.meta?.codexInputId && <Text style={{ fontSize: 11, color: theme.colors.textSecondary }}>{({ queued: '已排队', submitting: '正在补充', running: '处理中', steered: '已加入当前任务', completed: '已完成', interrupted: '已停止', canceled: '已从队列移除', failed: '提交失败，可在队列重试' } as Record<string, string>)[session?.agentState?.codexInputs?.receipts?.find(receipt => receipt.id === props.message.meta?.codexInputId)?.status ?? ''] ?? '已提交'}</Text>}
           {props.metadata?.flavor === 'codex' ? (
             <Pressable accessibilityRole="button" accessibilityLabel="从这条消息重新编辑并保留原分支" onPress={editMessage}
               {...(Platform.OS === 'web' ? { title: '从这条消息重新编辑并保留原分支' } : {})}

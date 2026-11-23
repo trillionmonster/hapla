@@ -45,6 +45,7 @@ function isApiRequest(rawUrl) {
         return false;
     }
     return /^\/v\d+(?:\/|$)/.test(pathname)
+        || pathname.startsWith('/preview/')
         || pathname.startsWith('/files/')
         || pathname === '/health';
 }
@@ -95,6 +96,16 @@ function resolveRequestPath(rawUrl) {
 }
 
 const server = createServer((request, response) => {
+    // Root-relative resources and navigations retain their preview handle.
+    // Referrer scoping keeps simultaneous preview tabs independent.
+    try {
+        const referrer = new URL(request.headers.referer || '');
+        const match = /^\/preview\/([a-f0-9]{32})(?:\/|$)/.exec(referrer.pathname);
+        if (match && referrer.host === request.headers.host && !(request.url || '').startsWith('/preview/')) {
+            response.writeHead(307, { Location: `/preview/${match[1]}${request.url}`, 'Cache-Control': 'no-store' });
+            response.end(); return;
+        }
+    } catch { /* No preview referrer. */ }
     if (isApiRequest(request.url)) {
         apiProxy.web(request, response);
         return;

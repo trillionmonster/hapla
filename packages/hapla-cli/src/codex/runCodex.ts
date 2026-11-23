@@ -12,7 +12,8 @@ import { Credentials, readSettings } from '@/persistence';
 import { initialMachineMetadata } from '@/daemon/run';
 import { configuration } from '@/configuration';
 import packageJson from '../../package.json';
-import { MessageQueue2 } from '@/utils/MessageQueue2';
+import { CodexInputQueue } from './codexInputQueue';
+import { CodexSideChats } from './codexSideChats';
 import { hashObject } from '@/utils/deterministicJson';
 import { projectPath } from '@/projectPath';
 import { join } from 'node:path';
@@ -106,6 +107,7 @@ export async function runCodex(opts: {
     // Use shared PermissionMode type for cross-agent compatibility
     type PermissionMode = import('@/api/types').PermissionMode;
     interface EnhancedMode {
+        branchId?: string;
         permissionMode: PermissionMode;
         model?: string;
         effort?: import('./codexAppServerTypes').ReasoningEffort | null;
@@ -188,12 +190,19 @@ export async function runCodex(opts: {
     });
     session = initialSession;
 
-    const messageQueue = new MessageQueue2<EnhancedMode>((mode) => hashObject({
+    const messageQueue = new CodexInputQueue<EnhancedMode>((mode) => hashObject({
         permissionMode: mode.permissionMode,
         model: mode.model,
         effort: mode.effort,
         verbosity: mode.verbosity, serviceTier: mode.serviceTier, collaborationMode: mode.collaborationMode,
-    }));
+        branchId: mode.branchId,
+    }), join(configuration.haplaHomeDir, 'codex-inputs', `${session.getMetadata()?.conversationRootSessionId ?? session.sessionId}.json`), () => {
+        const { paused, items, receipts } = messageQueue.snapshot();
+        session.updateAgentState(state => ({ ...state, codexInputs: { paused, receipts, items: items.map(({ id, message, revision, createdAt, error }) => ({ id, message, revision, createdAt, error })) } }));
+    });
+    let inputSubmission: Promise<void> = Promise.resolve();
+    let mainTurnInputText = '';
+    let sideChats: CodexSideChats | undefined;
     const interactiveAppScopes = new Map<string, InteractiveAppScope>();
     const sessionStreams = new CodexSessionStreamBuffer((snapshot) => session.sendSessionStream(snapshot));
     const commandOutputs = new CommandOutputStore(process.cwd(), sessionTag, (error) => {
@@ -261,24 +270,46 @@ export async function runCodex(opts: {
             effort: messageEffort,
             verbosity: currentVerbosity, serviceTier: currentServiceTier, collaborationMode: currentCollaborationMode,
         };
+        enhancedMode.branchId = message.meta?.branchId;
+        const id = message.meta?.codexInputId ?? randomUUID();
         const text = getUserMessageText(message);
-        const images = getUserMessageImages(message);
-        if (images.length > 0) {
+        inputSubmission = inputSubmission.then(async () => {
+            if (messageQueue.has(id)) return;
             pendingInputPreparations++;
-            void getCodexInputItemsAsync(message, {
-                serverUrl: configuration.serverUrl,
-                token: session.authToken,
-            }).then((inputItems) => {
-                messageQueue.pushMultimodal(inputItems, enhancedMode);
-            }).catch((error) => {
-                logger.warn('[Codex] Failed to prepare image input for Codex', error);
-                messageQueue.push(`${text || '[image]'}
-
-[Image input failed to load before sending to Codex.]`, enhancedMode);
-            }).finally(() => { pendingInputPreparations--; });
-        } else {
-            messageQueue.push(text, enhancedMode);
-        }
+            try {
+                const input = await getCodexInputItemsAsync(message, { serverUrl: configuration.serverUrl, token: session.authToken });
+                const delivery = message.meta?.codexFollowupMode ?? 'steer';
+                const steer = delivery === 'steer' && !!(client?.turnId || client?.startId) && !abortInProgress;
+                messageQueue.pushMultimodal(input, enhancedMode, id, steer || delivery === 'replace');
+                if (delivery === 'replace') {
+                    try {
+                        if (client?.turnId || client?.startId) {
+                            if (!message.meta?.codexInterruptTarget) throw new Error('缺少要停止的任务标识，请刷新后重试');
+                            await handleAbort({ ...message.meta.codexInterruptTarget, requestId: `replace:${id}` });
+                        }
+                        messageQueue.release(id); messageQueue.start(id);
+                    } catch (error) { messageQueue.fail(id, error instanceof Error ? error.message : String(error)); }
+                } else if (steer) {
+                    try {
+                        const deadline = Date.now() + 15_000;
+                        while (client.startId && !client.turnId && !abortInProgress && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+                        if (!client.turnId && !client.startId) { messageQueue.release(id); messageQueue.start(id); }
+                        else {
+                            await client.steerTurnContent(input as InputItem[], id);
+                            mainTurnInputText += `\n${text}`;
+                            messageQueue.acknowledge(id, 'steered');
+                        }
+                    } catch (error) {
+                        // Ambiguous failures require an explicit retry; never
+                        // silently cancel a turn or duplicate a submitted input.
+                        messageQueue.fail(id, error instanceof Error ? error.message : String(error));
+                    }
+                } else if (delivery !== 'queue') messageQueue.start(id);
+            } finally { pendingInputPreparations--; }
+        }).catch(error => {
+            logger.warn('[Codex] Follow-up submission failed', error instanceof Error ? error.message : String(error));
+            session.sendSessionEvent({ type: 'message', message: `追问提交失败：${error instanceof Error ? error.message : String(error)}` });
+        });
     });
     let thinking = false;
     let codexRuntime: CodexRuntimeState | null = null;
@@ -368,6 +399,7 @@ export async function runCodex(opts: {
             turn: capturedRuntime?.turn,
             startId: capturedRuntime?.startId,
         });
+        messageQueue.pause();
         turnMediaDelivery?.cancel();
         cancelArtifactRecovery();
         if (abortInProgress) {
@@ -380,7 +412,7 @@ export async function runCodex(opts: {
             try {
                 // Resolve any pending permission requests as 'abort' first.
                 if (permissionHandler) {
-                    permissionHandler.abortAll();
+                    permissionHandler.abortThread(client.threadId);
                 }
 
                 // A timeout leaves interruption unconfirmed and retryable.
@@ -601,6 +633,19 @@ export async function runCodex(opts: {
         };
     });
 
+    session.rpcHandlerManager.registerHandler('codex-thread-fork-current', async (params: any) => {
+        await waitForCodexThread();
+        const parentId = activeCodexBranchId;
+        const sourceThreadId = client.threadId!;
+        const createdAt = Date.now();
+        const result = await client.requestRaw<{ thread: { id: string } }>('thread/fork', { threadId: sourceThreadId, cwd: process.cwd(), deferGoalContinuation: true });
+        const label = typeof params?.label === 'string' && params.label.trim() ? params.label.trim().slice(0, 80) : '新分支';
+        await session.updateMetadata(metadata => ({ ...metadata, codexBranches: [...(metadata.codexBranches ?? [{ id: parentId, threadId: sourceThreadId, label: 'Original', createdAt }]), {
+            id: result.thread.id, threadId: result.thread.id, parentId, label, createdAt, forkMessageCreatedAt: createdAt,
+        }] }));
+        return { branchId: result.thread.id, parentId, label };
+    });
+
     const requireInteractiveAppScope = (server: unknown, resourceUri: unknown): InteractiveAppScope => {
         if (typeof server !== 'string' || typeof resourceUri !== 'string') {
             throw new Error('Interactive app server and resourceUri are required.');
@@ -706,7 +751,7 @@ export async function runCodex(opts: {
     });
 
     // Approval handler: routes server → client approval requests to our permission handler
-    client.setApprovalHandler(async (params) => {
+    const approvalHandler: import('./codexAppServerClient').ApprovalHandler = async (params) => {
         const toolName = params.type === 'exec'
             ? 'CodexBash'
             : params.type === 'patch'
@@ -726,9 +771,10 @@ export async function runCodex(opts: {
             logger.debug('[Codex] Error handling permission:', error);
             return 'denied';
         }
-    });
+    };
+    client.setApprovalHandler(approvalHandler);
 
-    client.setUserInputHandler(async (params) => {
+    const userInputHandler: import('./codexAppServerClient').UserInputHandler = async (params) => {
         const uiQuestions = (Array.isArray(params.questions) ? params.questions : []).map((question) => ({
             id: question.id,
             header: question.header,
@@ -757,7 +803,68 @@ export async function runCodex(opts: {
             logger.warn('[Codex] requestUserInput failed:', error);
             return { answers: {} };
         }
+    };
+    client.setUserInputHandler(userInputHandler);
+    sideChats = new CodexSideChats({
+        file: join(configuration.haplaHomeDir, 'codex-sides', `${session.getMetadata()?.conversationRootSessionId ?? session.sessionId}.json`),
+        sourceThread: () => client.threadId,
+        sourceContext: async () => {
+            if (!client.turnId) return null;
+            let partial: unknown[] = [];
+            try {
+                const turn = (await client.readThreadTurns()).find(turn => turn.id === client.turnId);
+                partial = turn?.items?.filter((item: any) => item.type === 'userMessage' || item.type === 'agentMessage') ?? [];
+            } catch { /* The accepted local input still supplies context during a read race. */ }
+            return JSON.stringify({ acceptedInput: mainTurnInputText, partial });
+        },
+        createClient: () => new CodexAppServerClient(sandboxConfig, opts.codexArgs ?? []),
+        approval: approvalHandler, userInput: userInputHandler,
+        observe: (event, threadId) => permissionHandler.observeProtocolEvent(event, threadId),
+        abort: threadId => permissionHandler.abortThread(threadId),
+        reset: threadId => permissionHandler.resetThread(threadId),
+        changed: chats => session.updateAgentState(state => ({ ...state, codexSideChats: chats })),
     });
+    session.updateAgentState(state => ({ ...state, codexSideChats: sideChats!.snapshot(), codexInputs: { ...messageQueue.snapshot(), items: messageQueue.snapshot().items.map(({ id, message, revision, createdAt, error }) => ({ id, message, revision, createdAt, error })) } }));
+    session.rpcHandlerManager.registerHandler('codex-side-send', async (params: any) => {
+        if (typeof params?.id !== 'string' || typeof params?.text !== 'string' || params.text.length > 128 * 1024) throw new Error('无效的旁问');
+        await waitForCodexThread();
+        const images = Array.isArray(params.images) ? params.images : [];
+        if (images.length > 8 || images.some((image: any) => typeof image.url !== 'string' || typeof image.mediaType !== 'string')) throw new Error('无效的旁问图片');
+        const input = images.length ? await getCodexInputItemsAsync({ role: 'user', content: { type: 'multimodal', parts: [...images.map((image: any) => ({ type: 'image' as const, source: { type: 'url' as const, url: image.url, media_type: image.mediaType } })), { type: 'text', text: params.text }] } }, { serverUrl: configuration.serverUrl, token: session.authToken }) : undefined;
+        return sideChats!.submit({ id: params.id, chatId: params.chatId, text: params.text, input: input as InputItem[] | undefined });
+    });
+    session.rpcHandlerManager.registerHandler('codex-side-action', async (params: any) => {
+        if (params?.action === 'stop') await sideChats!.stop(params.id);
+        else if (params?.action === 'remove') await sideChats!.remove(params.id);
+        else throw new Error('未知旁聊操作');
+        return { success: true };
+    });
+    session.rpcHandlerManager.registerHandler('codex-queue', async (params: any) => {
+        switch (params?.action) {
+            case 'list': break;
+            case 'update': messageQueue.update(params.id, params.revision, params.text); break;
+            case 'remove': messageQueue.remove(params.id, params.revision); break;
+            case 'reorder': messageQueue.reorder(params.ids); break;
+            case 'pause': messageQueue.pause(); break;
+            case 'start': messageQueue.start(params.id); break;
+            case 'inject': {
+                const item = messageQueue.get(params.id, params.revision);
+                if (client.turnId) {
+                    messageQueue.hold(item.id);
+                    try {
+                        await client.steerTurnContent(item.contentBlocks as InputItem[] ?? [{ type: 'text', text: item.message }], item.id);
+                        mainTurnInputText += `\n${item.message}`;
+                        messageQueue.acknowledge(item.id, 'steered');
+                    } catch (error) { messageQueue.fail(item.id, error instanceof Error ? error.message : String(error)); throw error; }
+                } else messageQueue.start(params.id);
+                break;
+            }
+            default: throw new Error('未知队列操作');
+        }
+        return messageQueue.snapshot();
+    });
+
+
 
     // Event handler: same EventMsg types as the legacy MCP server — no changes needed
     client.setEventHandler((msg) => {
@@ -781,7 +888,7 @@ export async function runCodex(opts: {
         }
         const nextRuntime = reduceCodexRuntimeEvent(codexRuntime, msg);
         if (msg.type === 'codex_runtime_started' && nextRuntime === codexRuntime) return;
-        permissionHandler.observeProtocolEvent(msg);
+        permissionHandler.observeProtocolEvent(msg, client.threadId ?? undefined);
         if (msg.type === 'codex_runtime_started' || msg.type === 'codex_thread_status') turnBarrier.recovered();
         if (nextRuntime !== codexRuntime) {
             codexRuntime = nextRuntime;
@@ -1117,6 +1224,7 @@ export async function runCodex(opts: {
         });
 
         let pending: {
+            id?: string;
             message: string;
             contentBlocks?: import('@/utils/MessageQueue2').ContentBlock[];
             mode: EnhancedMode;
@@ -1129,6 +1237,7 @@ export async function runCodex(opts: {
             if (!await turnBarrier.wait()) break;
             logActiveHandles('loop-top');
             let message: {
+                id?: string;
                 message: string;
                 contentBlocks?: import('@/utils/MessageQueue2').ContentBlock[];
                 mode: EnhancedMode;
@@ -1164,6 +1273,9 @@ export async function runCodex(opts: {
             messageBuffer.addMessage(message.message, 'user');
 
             try {
+                if (message.mode.branchId && client.threadId && message.mode.branchId !== activeCodexBranchId) {
+                    throw new Error('这条排队消息属于其他分支，请切换到对应分支后重试');
+                }
                 // Map permission mode to approval policy and sandbox.
                 // With app-server, these are per-turn — no restart needed on mode change.
                 const sandboxManagedByHapla = client.sandboxEnabled;
@@ -1252,6 +1364,7 @@ export async function runCodex(opts: {
                 // this exact batch here until its authoritative terminal event.
                 if (!await turnBarrier.wait()) break;
                 hasUnsubmittedInput = false;
+                mainTurnInputText = message.message;
                 const result = contentBlocks
                     ? await client.sendTurnContentAndWait(
                         contentBlocks,
@@ -1272,6 +1385,7 @@ export async function runCodex(opts: {
                         sandbox: executionPolicy.sandbox,
                         networkAccess: shouldAutoDisplayGeneratedImages,
                     });
+                if (message.id) messageQueue.acknowledge(message.id, result.aborted ? 'interrupted' : 'completed');
                 const completedMediaTurnId = currentTurnId ?? lastCompletedTurnId;
                 if (!result.aborted && completedMediaTurnId) {
                     await turnMediaDelivery?.finish(artifactStep(completedMediaTurnId));
@@ -1290,6 +1404,7 @@ export async function runCodex(opts: {
                     logger.debug('[Codex] Turn aborted');
                 }
             } catch (error) {
+                if (message.id) messageQueue.fail(message.id, error instanceof Error ? error.message : String(error));
                 logger.warn('Error in codex session:', error);
                 let failureMessage = `Codex execution failed: ${error instanceof Error ? error.message : String(error)}`;
                 let recoveryMessage: string | null = null;
@@ -1312,7 +1427,7 @@ export async function runCodex(opts: {
                 turnMediaDelivery = null;
                 hasUnsubmittedInput = false;
                 // Reset permission handler, reasoning processor, and diff processor
-                permissionHandler.reset();
+                permissionHandler.resetThread(client.threadId);
                 reasoningSummaryParts.clear();
                 diffProcessor.reset();
                 // A transport failure or interrupt acknowledgement is not a completed turn.
@@ -1333,6 +1448,8 @@ export async function runCodex(opts: {
     } finally {
         // Clean up resources when main loop exits
         logger.debug('[codex]: Final cleanup start');
+        messageQueue.close();
+        await sideChats?.close();
         turnMediaDelivery?.cancel();
         cancelArtifactRecovery();
         session.off?.('connected', resumeArtifactBacklog);

@@ -149,6 +149,17 @@ class ApiSocket {
         throw new Error(typeof result.error === 'string' && result.error.trim() ? result.error : 'RPC call failed');
     }
 
+    /** Commands must check the encrypted handler result as well as the relay ACK.
+     * RpcHandlerManager encrypts thrown errors inside an otherwise successful ACK.
+     * Keep sessionRPC's result contract for callers that inspect domain errors. */
+    async sessionCommand<R, A>(sessionId: string, method: string, params: A, timeoutMs?: number): Promise<R> {
+        const result = await this.sessionRPC<R, A>(sessionId, method, params, timeoutMs);
+        if (result && typeof result === 'object' && 'error' in result && typeof result.error === 'string' && result.error.trim()) {
+            throw new Error(result.error);
+        }
+        return result;
+    }
+
     /**
      * RPC call for machines - uses legacy/global encryption (for now)
      */
@@ -231,6 +242,12 @@ class ApiSocket {
     //
 
     private requireConnectedSocket(expected?: Socket): Socket {
+        // WebKit may keep an existing WebSocket OPEN after the browser goes
+        // offline. Fail new commands before encryption/ACK registration instead
+        // of leaving the composer waiting for the transport's timeout.
+        if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.onLine === false) {
+            throw new Error('网络已离线，请恢复连接后重试');
+        }
         const socket = this.socket;
         if (!socket?.connected || (expected && socket !== expected)) {
             throw new Error('Socket not connected');

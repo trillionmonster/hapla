@@ -1,3 +1,7 @@
+import type { ComposerDelivery } from '@/components/CodexFollowupControls';
+import { apiSocket } from '@/sync/apiSocket';
+import { randomId } from '@/utils/randomId';
+import { uploadChatImages } from '@/sync/apiUploads';
 import { AgentContentView } from '@/components/AgentContentView';
 import { CodexProtocolDiagnostics } from '@/components/CodexProtocolDiagnostics';
 import { AgentInput } from '@/components/AgentInput';
@@ -61,6 +65,8 @@ import {
     useMcpAppWorkspace,
 } from '@/components/tools/mcpAppWorkspace';
 
+const LazyCodexFollowupControls = React.lazy(() => import('@/components/CodexFollowupControls').then(module => ({ default: module.CodexFollowupControls })));
+const LazyCodexSideChatPanel = React.lazy(() => import('@/components/CodexSideChatPanel').then(module => ({ default: module.CodexSideChatPanel })));
 const LazyCoderTerminalPanel = React.lazy(() => import('@/components/CoderTerminalPanel'));
 const LazyMcpAppSurface = React.lazy(async () => {
     const module = await import('@/components/tools/views/McpAppSurface');
@@ -231,10 +237,16 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const isLandscape = useIsLandscape();
     const deviceType = useDeviceType();
     const { width: viewportWidth } = useWindowDimensions();
+    const compactComposer = Platform.OS === 'web' && (viewportWidth <= 700 || (viewportWidth <= 1180 && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches));
     const [message, setMessage] = React.useState('');
     const [pastedImages, setPastedImages] = React.useState<Array<{ data: string; mediaType: string }>>([]);
     const [isSendingMessage, setIsSendingMessage] = React.useState(false);
     const [latestRequest, setLatestRequest] = React.useState(0);
+    const [deliveryMode, setDeliveryMode] = React.useState<ComposerDelivery>('steer');
+    const [sideChatId, setSideChatId] = React.useState<string>();
+    const [sidePanelOpen, setSidePanelOpen] = React.useState(false);
+    const sideRequest = React.useRef<{ key: string; id: string } | null>(null);
+    React.useEffect(() => { setDeliveryMode('steer'); setSideChatId(undefined); setSidePanelOpen(false); }, [sessionId]);
     const [workspaceMode, setWorkspaceMode] = useWorkspaceMode(sessionId);
     const [coderPanel, setCoderPanel] = React.useState<CoderPanel>(null);
     const coderPreloadedRef = React.useRef(false);
@@ -534,12 +546,31 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </>
     ) : null;
 
+    const changeDeliveryMode = (mode: ComposerDelivery) => {
+        setDeliveryMode(mode);
+        if (mode === 'btw') {
+            if (!sidePanelOpen && !sideChatId) setSideChatId(session.agentState?.codexSideChats?.at(-1)?.id);
+            setSidePanelOpen(true);
+        }
+    };
+    const closeSidePanel = () => {
+        setSidePanelOpen(false);
+        if (deliveryMode === 'btw') setDeliveryMode('steer');
+    };
+    const composeSideQuestion = () => {
+        changeDeliveryMode('btw');
+        if (Platform.OS === 'web') requestAnimationFrame(() => document.getElementById(`hapla-composer-${sessionId}`)?.querySelector<HTMLTextAreaElement>('textarea')?.focus());
+    };
+    const followupControls = session.metadata?.flavor === 'codex' ? <React.Suspense fallback={null}><LazyCodexFollowupControls embedded={compactComposer} sessionId={sessionId} mode={deliveryMode} onMode={changeDeliveryMode} sideChatId={sideChatId} onSideChat={setSideChatId} onSidePanel={() => changeDeliveryMode('btw')} sidePanelOpen={sidePanelOpen} /></React.Suspense> : null;
     const composer = (
-        <>
+        <View nativeID={`hapla-composer-${sessionId}`}>
+
         <PendingRequestsPanel session={session} />
         {attachments.input}
+        {!compactComposer && followupControls}
         <AgentInput
-            placeholder={t('session.inputPlaceholder')}
+            followupControls={compactComposer ? followupControls : undefined}
+            placeholder={deliveryMode === 'btw' ? '向旁问发送消息…' : deliveryMode === 'queue' ? '下一轮要处理什么？' : deliveryMode === 'replace' ? '停止当前任务，然后处理这条消息…' : t('session.inputPlaceholder')}
             value={message}
             onChangeText={setMessage}
             inputHistory={inputHistory}
@@ -561,9 +592,23 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             onPickFiles={attachments.pick}
             attachmentPreview={attachments.preview}
             connectionStatus={connectionStatus}
-            onSend={() => {
+            onSend={(overrideDelivery) => {
                 if (isSendingMessage) {
                     return;
+                }
+                if (session.metadata?.flavor === 'codex') {
+                    const command = /^\/(btw|side|queue|steer|stop|interrupt|fork)\s*$/i.exec(message);
+                    if (command) {
+                        const name = command[1].toLowerCase();
+                        if (name === 'btw' || name === 'side') { changeDeliveryMode('btw'); setSideChatId(undefined); setMessage(''); }
+                        else if (name === 'queue' || name === 'steer') { setDeliveryMode(name); setMessage(''); }
+                        else {
+                            setIsSendingMessage(true);
+                            void (name === 'fork' ? apiSocket.sessionCommand(sessionId, 'codex-thread-fork-current', {}) : sessionAbort(sessionId))
+                                .then(() => setMessage('')).catch(error => Modal.alert('操作失败', error.message)).finally(() => setIsSendingMessage(false));
+                        }
+                        return;
+                    }
                 }
                 if (message.trim() || pastedImages.length > 0 || attachments.count > 0) {
                     const draftMessage = message;
@@ -575,7 +620,16 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                             const files = await attachments.uploadAll(targetSessionId);
                             if (!draftMessage.trim() && !images?.length && files.length === 0) return;
                             const payload = attachmentMessage(draftMessage, files);
-                            await sync.sendMessage(targetSessionId, payload.text, { source: 'chat', images, displayText: payload.displayText });
+                            const slash = /^\/(btw|side|queue|steer|interrupt)\s+([\s\S]+)$/i.exec(payload.text);
+                            const selectedDelivery = session.metadata?.flavor === 'codex' ? (slash ? ({ btw: 'btw', side: 'btw', queue: 'queue', steer: 'steer', interrupt: 'replace' } as const)[slash[1].toLowerCase() as 'btw'] : overrideDelivery ?? deliveryMode) : undefined;
+                            const submittedText = slash && selectedDelivery ? slash[2] : payload.text;
+                            if (selectedDelivery === 'btw') {
+                                const uploadedImages = images?.length ? await uploadChatImages(images) : undefined;
+                                const requestKey = JSON.stringify([targetSessionId, sideChatId, draftMessage, images, attachments.count]);
+                                if (sideRequest.current?.key !== requestKey) sideRequest.current = { key: requestKey, id: randomId() };
+                                const result = await apiSocket.sessionCommand<{ id: string }, Record<string, unknown>>(targetSessionId, 'codex-side-send', { id: sideRequest.current.id, chatId: sideChatId, text: submittedText, images: uploadedImages });
+                                sideRequest.current = null; setSideChatId(result.id); setDeliveryMode('btw'); setSidePanelOpen(true);
+                            } else await sync.sendMessage(targetSessionId, submittedText, { codexInterruptTarget: selectedDelivery === 'replace' && session.agentState?.codexRuntime?.threadId ? { epoch: session.agentState.codexRuntime.epoch, threadId: session.agentState.codexRuntime.threadId, turnId: session.agentState.codexRuntime.turnId, startId: session.agentState.codexRuntime.startId ?? null } : undefined, codexFollowupMode: selectedDelivery, source: 'chat', images, displayText: payload.displayText });
                             setLatestRequest(value => value + 1);
                             setMessage('');
                             setPastedImages([]);
@@ -622,7 +676,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             } : undefined}
             alwaysShowContextSize={alwaysShowContextSize}
         />
-        </>
+        </View>
     );
 
     const terminalPanel = workspaceMode === 'coder' && coderPanel === 'terminal' ? (
@@ -707,6 +761,9 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                             placeholder={placeholder}
                         />
                     </View>
+                    {Platform.OS === 'web' && sidePanelOpen && session.metadata?.flavor === 'codex' && <React.Suspense fallback={null}>
+                        <LazyCodexSideChatPanel sessionId={sessionId} selectedId={sideChatId} onSelect={setSideChatId} onClose={closeSidePanel} onCompose={composeSideQuestion} composing={deliveryMode === 'btw'} />
+                    </React.Suspense>}
                     {Platform.OS === 'web' && activeMcpApp && (
                         <View
                             accessibilityViewIsModal={viewportWidth < 980}

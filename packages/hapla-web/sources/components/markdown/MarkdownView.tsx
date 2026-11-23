@@ -52,6 +52,10 @@ export const MarkdownView = React.memo((props: {
     const selectable = Platform.OS === 'web' || !markdownCopyV2;
 
     const handleLinkPress = React.useCallback((url: string) => {
+        if (Platform.OS === 'web' && /^\/preview\/[a-f0-9]{32}(?:\/|$)/.test(url)) {
+            if (typeof window !== 'undefined') window.open(new URL(url, window.location.href).toString(), '_blank', 'noopener,noreferrer');
+            return;
+        }
         if (isHttpMarkdownLink(url)) {
             if (Platform.OS === 'web') {
                 if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');

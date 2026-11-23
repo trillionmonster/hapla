@@ -6,10 +6,15 @@ before making a change. Report vulnerabilities through [SECURITY.md](SECURITY.md
 
 ## Set up a checkout
 
-Use Node.js 22+ and the pnpm version pinned in `package.json`. Enable Corepack,
-then run `pnpm install --frozen-lockfile` from the repository root. See the
-[development guide](docs/development.md) for starting the embedded database,
-Web client, and local CLI without external infrastructure.
+Use the `dev-hapla` Docker stack for development, with separate Web and Server
+host ports and private runtime state. Inside a development container, use Node.js
+22+ and the pnpm version pinned in `package.json`, enable Corepack, then run
+`pnpm install --frozen-lockfile` from the repository root. Run and debug the Hapla
+CLI only inside Docker. See the [development guide](docs/development.md).
+
+Treat Hapla changes as development unless the user explicitly requests
+“正式部署更新hapla”. Preserve running stacks throughout development; successful
+checks do not authorize a production update.
 
 The four application packages share the root `pnpm-lock.yaml`. Optional
 integrations and examples have their own installation instructions and lockfiles;
@@ -32,7 +37,7 @@ they are not part of the pnpm workspace.
 
 ## Validate
 
-Run `pnpm check` and `pnpm test` before submitting. For Web export changes, also
+Run `pnpm check` and `pnpm test` inside the dev development container before submitting. For Web export changes, also
 run `pnpm web:build`; for deployment templates, run `pnpm selfhost:check`.
 The [testing guide](docs/testing.md) explains the pinned Codex requirement,
 package-level commands, optional gateway checks, and authenticated integration tests.

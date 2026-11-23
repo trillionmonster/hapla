@@ -509,7 +509,7 @@ export function sessionAbort(sessionId: string): Promise<void> {
     const key = JSON.stringify([sessionId, runtime?.epoch, runtime?.threadId, runtime?.turnId, runtime?.startId]);
     const pending = pendingSessionAborts.get(key);
     if (pending) return pending;
-    const operation = apiSocket.sessionRPC<void, Record<string, unknown>>(sessionId, 'abort', {
+    const operation = apiSocket.sessionCommand<void, Record<string, unknown>>(sessionId, 'abort', {
         ...(runtime ? {
             epoch: runtime.epoch,
             threadId: runtime.threadId,
@@ -540,15 +540,15 @@ export function sessionForkCodexThread(sessionId: string, request: {
     forkMessageCreatedAt: number;
     label?: string;
 }): Promise<CodexBranchForkResult> {
-    return apiSocket.sessionRPC(sessionId, 'codex-thread-fork', request);
+    return apiSocket.sessionCommand(sessionId, 'codex-thread-fork', request);
 }
 
 export function sessionSwitchCodexBranch(sessionId: string, branchId: string): Promise<{ branchId: string; threadId: string }> {
-    return apiSocket.sessionRPC(sessionId, 'codex-thread-switch', { branchId });
+    return apiSocket.sessionCommand(sessionId, 'codex-thread-switch', { branchId });
 }
 
 export function sessionGetCodexThreadStatus(sessionId: string): Promise<{ branchId: string; threadId: string }> {
-    return apiSocket.sessionRPC(sessionId, 'codex-thread-status', {});
+    return apiSocket.sessionCommand(sessionId, 'codex-thread-status', {});
 }
 
 export function sessionReadMcpAppResource(

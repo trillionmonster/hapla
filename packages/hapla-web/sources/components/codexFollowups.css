@@ -1,0 +1,230 @@
+.hapla-followup-shell {
+    box-sizing: border-box;
+    width: calc(100% - 24px);
+    margin: 0 auto;
+    position: relative;
+    flex: 0 0 auto;
+    color: var(--followup-text);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.hapla-followup-shell button, .hapla-btw-panel button, .hapla-btw-panel select {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.hapla-followup-toolbar, .hapla-followup-delivery, .hapla-followup-tools {
+    display: flex;
+    align-items: center;
+}
+.hapla-followup-toolbar { min-height: 42px; justify-content: space-between; gap: 8px; padding: 0 2px 3px; }
+.hapla-followup-delivery { gap: 12px; min-width: 0; }
+.hapla-followup-tools { gap: 3px; flex-shrink: 0; }
+.hapla-followup-mode, .hapla-followup-tool, .hapla-followup-icon, .hapla-followup-text-action {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    gap: 6px;
+    min-height: 32px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    padding: 4px 8px;
+    white-space: nowrap;
+    color: var(--followup-muted);
+}
+.hapla-followup-mode { color: var(--followup-text); padding-left: 7px; gap: 8px; font-weight: 500; }
+.hapla-followup-icon { width: 30px; padding: 4px; }
+.hapla-followup-hint { font-size: 11px; color: var(--followup-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hapla-followup-tool.is-active { color: var(--followup-accent); background: var(--followup-raised); }
+.hapla-followup-count { display: inline-flex; justify-content: center; align-items: center; min-width: 18px; height: 18px; padding-inline: 3px; border-radius: 5px; background: var(--followup-raised); color: var(--followup-text); font-size: 11px; font-variant-numeric: tabular-nums; }
+.hapla-followup-live, .hapla-followup-paused { display: inline-block; width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: var(--followup-accent); }
+.hapla-followup-paused { background: var(--followup-muted); }
+.hapla-followup-shell .is-danger, .hapla-btw-panel .is-danger { color: var(--followup-danger); }
+.hapla-followup-shell button:disabled, .hapla-btw-panel button:disabled { opacity: .45; cursor: wait; }
+.hapla-followup-shell button:focus-visible, .hapla-btw-panel button:focus-visible, .hapla-btw-panel select:focus-visible, .hapla-followup-queue textarea:focus-visible { outline: 2px solid var(--followup-accent); outline-offset: 2px; }
+@media (hover: hover) {
+    .hapla-followup-mode:hover, .hapla-followup-tool:hover, .hapla-followup-icon:hover, .hapla-followup-text-action:hover { background: var(--followup-hover); }
+}
+.hapla-followup-menu, .hapla-followup-queue {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    z-index: 1300;
+    box-sizing: border-box;
+    border: 1px solid var(--followup-line);
+    border-radius: 12px;
+    background: var(--followup-surface);
+    box-shadow: var(--followup-shadow);
+    overflow: hidden;
+}
+.hapla-followup-mode-menu { left: 0; width: min(310px, 100%); padding: 5px; }
+.hapla-followup-more-menu { right: 0; width: min(285px, 100%); padding: 5px; }
+.hapla-followup-option { display: flex; width: 100%; align-items: center; gap: 12px; box-sizing: border-box; padding: 11px 10px; text-align: left; border: 0; border-radius: 8px; background: transparent; }
+.hapla-followup-option:hover, .hapla-followup-option:focus-visible { background: var(--followup-raised); }
+.hapla-followup-option > span { flex: 1; min-width: 0; }
+.hapla-followup-option strong { display: block; font-size: 13px; font-weight: 500; }
+.hapla-followup-option small { display: block; margin-top: 3px; color: var(--followup-muted); font-size: 11px; line-height: 1.5; }
+.hapla-followup-option.has-divider { margin-top: 3px; border-top: 1px solid var(--followup-line); border-radius: 0 0 8px 8px; }
+.hapla-followup-queue { left: 0; right: 0; }
+.hapla-followup-queue > header { display: flex; justify-content: space-between; align-items: center; min-height: 50px; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--followup-line); }
+.hapla-followup-queue > header strong { font-size: 13px; font-weight: 600; margin-right: 9px; }
+.hapla-followup-queue > header span { font-size: 11px; color: var(--followup-muted); }
+.hapla-followup-queue-list { max-height: min(300px, 42vh); overflow-y: auto; overscroll-behavior: contain; }
+.hapla-followup-queue-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; }
+.hapla-followup-queue-row + .hapla-followup-queue-row { border-top: 1px solid var(--followup-line); }
+.hapla-followup-order { width: 18px; padding-top: 3px; color: var(--followup-muted); font: 11px/1.7 ui-monospace, monospace; }
+.hapla-followup-queue-copy { flex: 1; min-width: 0; }
+.hapla-followup-queue-copy p { margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: 1.65; }
+.hapla-followup-row-actions { display: flex; align-items: center; gap: 0; }
+.hapla-followup-row-actions .hapla-followup-icon { width: 27px; }
+.hapla-followup-queue textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 9px; border: 1px solid var(--followup-line); border-radius: 7px; background: var(--followup-raised); color: var(--followup-text); font: inherit; line-height: 1.6; }
+.hapla-followup-edit-actions { display: flex; gap: 8px; margin-top: 6px; }
+.hapla-followup-edit-actions button { min-height: 30px; padding: 3px 10px; border: 0; border-radius: 6px; background: var(--followup-raised); }
+.hapla-followup-edit-actions button:first-child { color: var(--followup-surface); background: var(--followup-text); }
+.hapla-followup-error { font-size: 12px; line-height: 1.6; color: var(--followup-danger); padding: 8px 12px; overflow-wrap: anywhere; }
+.hapla-followup-empty { padding: 26px 16px; color: var(--followup-text); text-align: center; font-size: 13px; }
+.hapla-followup-empty span { display: block; margin-top: 5px; color: var(--followup-muted); font-size: 12px; }
+
+.hapla-btw-panel { box-sizing: border-box; display: flex; flex-direction: column; width: 330px; min-width: 0; min-height: 0; flex: 0 0 330px; border-left: 1px solid var(--followup-line); background: var(--followup-surface); color: var(--followup-text); font-size: 13px; line-height: 1.5; }
+.hapla-btw-header { display: flex; align-items: center; justify-content: space-between; padding: 17px 20px 0; }
+.hapla-btw-header h2 { font-size: 18px; font-weight: 600; line-height: 1.4; margin: 0; }
+.hapla-btw-header h2 span { margin-left: 4px; color: var(--followup-muted); font-size: 11px; font-weight: 400; }
+.hapla-btw-context { margin: 7px 20px 17px; color: var(--followup-muted); font-size: 11px; }
+.hapla-btw-picker { display: flex; align-items: center; gap: 6px; padding: 0 15px 14px 20px; border-bottom: 1px solid var(--followup-line); }
+.hapla-btw-picker-label { display: none; }
+.hapla-btw-panel .hapla-btw-picker select { appearance: auto; box-sizing: border-box; width: 0; flex: 1; min-width: 0; height: 34px; padding: 4px 8px; border: 1px solid var(--followup-line); border-radius: 7px; background: var(--followup-raised); color: var(--followup-text); font-size: 12px; text-overflow: ellipsis; }
+.hapla-btw-messages { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px; }
+.hapla-btw-message + .hapla-btw-message { margin-top: 22px; }
+.hapla-btw-author { display: block; margin-bottom: 6px; color: var(--followup-muted); font-size: 10px; letter-spacing: .2px; }
+.hapla-btw-user-text { padding: 10px 12px; border-radius: 10px 10px 3px 10px; background: var(--followup-raised); white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.7; }
+.hapla-btw-message [data-hapla-markdown] { font-size: 13px; }
+.hapla-btw-message [data-hapla-markdown] :is(span, p, div) { font-size: 13px !important; line-height: 1.75 !important; }
+.hapla-btw-message [data-hapla-markdown] pre { max-width: 100%; overflow-x: auto; }
+.hapla-btw-status { display: flex; align-items: center; gap: 8px; color: var(--followup-muted); margin-top: 20px; font-size: 12px; }
+.hapla-btw-empty { padding: 28px 0; color: var(--followup-muted); }
+.hapla-btw-empty h3 { margin: 18px 0 8px; color: var(--followup-text); font-size: 14px; font-weight: 500; }
+.hapla-btw-empty p { margin: 0; font-size: 12px; line-height: 1.8; }
+.hapla-btw-empty > span { display: block; margin-top: 18px; font-size: 11px; }
+.hapla-btw-footer { flex-shrink: 0; border-top: 1px solid var(--followup-line); padding: 14px 16px 12px; }
+.hapla-btw-compose { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--followup-line); border-radius: 8px; background: var(--followup-raised); font-size: 12px !important; }
+.hapla-btw-footer > div { display: flex; justify-content: space-between; align-items: center; min-height: 30px; margin-top: 5px; color: var(--followup-muted); font-size: 10px; }
+
+/* The on-screen keyboard can leave less room than the panel's fixed chrome.
+   Compact the controls before they can overflow onto the main composer. */
+.hapla-btw-panel { container: hapla-btw / size; overflow: hidden; }
+.hapla-btw-compact-stop { display: none; }
+@container hapla-btw (max-height: 240px) {
+    .hapla-btw-panel .hapla-btw-header { flex-shrink: 0; min-height: 32px; padding: 0 10px; }
+    .hapla-btw-header h2 { font-size: 13px; }
+    .hapla-btw-context { display: none; }
+    .hapla-btw-picker { flex-shrink: 0; padding: 0 8px 3px; }
+    .hapla-btw-panel .hapla-btw-picker select { height: 28px; }
+    .hapla-btw-messages { padding: 6px 10px; }
+    .hapla-btw-message + .hapla-btw-message { margin-top: 8px; }
+    .hapla-btw-footer { display: flex; align-items: center; gap: 6px; padding: 3px 8px; }
+    .hapla-btw-compose { flex: 1; min-width: 0; min-height: 28px; padding: 3px 6px; font-size: 11px !important; }
+    .hapla-btw-footer > div { margin: 0; min-height: 28px; }
+    .hapla-btw-footer > div > span { display: none; }
+}
+@container hapla-btw (max-height: 160px) {
+    .hapla-btw-picker { display: none; }
+}
+@container hapla-btw (max-height: 140px) {
+    .hapla-btw-messages, .hapla-btw-footer { display: none; }
+    .hapla-btw-panel .hapla-btw-header { padding: 0 8px; min-height: 44px; }
+    .hapla-btw-header .hapla-followup-icon { width: 44px; height: 44px; }
+    .hapla-btw-panel .hapla-btw-compact-stop { display: inline-flex; min-height: 44px; }
+}
+
+@media (max-width: 1180px) {
+    .hapla-btw-panel { position: absolute; z-index: 1100; top: min(8px, calc(100% - var(--btw-composer-space, 178px) - 46px)); right: 12px; bottom: var(--btw-composer-space, 178px); min-height: 46px; width: min(350px, calc(100% - 24px)); border: 1px solid var(--followup-line); border-radius: 12px; box-shadow: var(--followup-shadow); }
+    .hapla-btw-panel[data-compact="true"] { top: auto; height: 46px; }
+}
+@media (max-width: 700px) {
+    .hapla-followup-shell { width: calc(100% - 16px); }
+    .hapla-followup-hint { display: none; }
+    .hapla-followup-toolbar { padding-bottom: 2px; gap: 2px; }
+    .hapla-followup-mode { font-size: 12px !important; gap: 6px; padding-inline: 5px; }
+    .hapla-followup-tool { font-size: 12px !important; padding-inline: 6px; }
+    .hapla-followup-queue-row { flex-wrap: wrap; gap: 8px; }
+    .hapla-followup-row-actions { margin-left: 26px; }
+    .hapla-followup-row-actions .hapla-followup-icon { width: 34px; min-height: 34px; }
+    .hapla-btw-panel { left: 8px; right: 8px; top: min(4px, calc(100% - var(--btw-composer-space, 178px) - 46px)); width: auto; }
+    .hapla-btw-header { padding-top: 14px; }
+    .hapla-btw-context { margin-bottom: 12px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .hapla-followup-menu, .hapla-followup-queue { animation: hapla-followup-enter .12s ease-out; }
+    @keyframes hapla-followup-enter { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+}
+
+/* Compact composer: one tool row inside the input surface. */
+.hapla-mobile-composer-bar { display: flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 3px; color: var(--followup-muted); font-size: 12px; }
+.hapla-mobile-composer-bar button { font: inherit; cursor: pointer; touch-action: manipulation; }
+.hapla-mobile-composer-more { position: relative; flex: 0 0 44px; }
+.hapla-mobile-composer-tool { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: inherit; border-radius: 10px; }
+.hapla-mobile-composer-controls { flex: 1; min-width: 0; }
+.hapla-mobile-composer-primary { flex: 0 0 44px; height: 44px; border-radius: 50%; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px; background: var(--followup-text); color: var(--followup-surface); padding: 0; }
+.hapla-mobile-composer-primary.is-stop { flex-basis: 82px; border-radius: 11px; border: 1px solid var(--followup-line); color: var(--followup-danger); background: transparent; font-size: 11px; }
+.hapla-mobile-composer-primary:disabled { cursor: default; opacity: .35; }
+.hapla-mobile-composer-menu { position: absolute; left: 0; bottom: calc(100% + 10px); z-index: 1400; width: min(232px, calc(100vw - 36px)); max-height: min(340px, calc(100dvh - 140px)); overflow-y: auto; overscroll-behavior: contain; padding: 5px; box-sizing: border-box; border: 1px solid var(--followup-line); border-radius: 13px; background: var(--followup-surface); box-shadow: var(--followup-shadow); }
+.hapla-mobile-composer-menu > button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 8px; color: var(--followup-text); background: transparent; text-align: left; font-size: 13px; }
+.hapla-mobile-composer-menu > button:hover, .hapla-mobile-composer-menu > button:focus-visible { background: var(--followup-raised); }
+.hapla-mobile-composer-menu .is-danger { color: var(--followup-danger); }
+.hapla-mobile-composer-bar button:focus-visible { outline: 2px solid var(--followup-accent); outline-offset: 1px; }
+.hapla-composer-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.hapla-mobile-composer-spinner { width: 15px; height: 15px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: hapla-composer-spin .8s linear infinite; }
+@keyframes hapla-composer-spin { to { transform: rotate(360deg); } }
+.hapla-followup-shell.is-composer-inline { width: auto; min-width: 0; margin: 0; }
+.is-composer-inline .hapla-followup-toolbar { min-height: 44px; justify-content: space-between; padding: 0; gap: 0; }
+.is-composer-inline .hapla-followup-delivery, .is-composer-inline .hapla-followup-tools { gap: 0; }
+.is-composer-inline .hapla-followup-hint, .is-composer-inline .hapla-followup-more-trigger { display: none; }
+.is-composer-inline .hapla-followup-mode { min-width: 44px; min-height: 44px; padding: 4px; gap: 4px; font-size: 12px !important; }
+.is-composer-inline .hapla-followup-mode > [aria-hidden]:first-child, .is-composer-inline .hapla-followup-tool > [aria-hidden] { display: none; }
+.is-composer-inline .hapla-followup-tool { min-width: 44px; min-height: 44px; padding: 4px 6px; gap: 4px; font-size: 12px !important; }
+.is-composer-inline .hapla-followup-tool.is-active { color: var(--followup-text); background: var(--followup-raised); }
+.is-composer-inline .hapla-followup-live { background: var(--followup-muted); }
+.is-composer-inline .hapla-followup-count { height: 17px; min-width: 16px; font-size: 10px; }
+.is-composer-inline .hapla-followup-mode-menu, .is-composer-inline .hapla-followup-queue { left: -40px; right: auto; width: min(340px, calc(100vw - 28px)); }
+.is-composer-inline .hapla-followup-mode-menu { width: min(300px, calc(100vw - 28px)); }
+
+/* The compact side pane spends its height on answers, with one quiet header. */
+@media (max-width: 700px), (pointer: coarse) and (max-width: 1180px) {
+    .hapla-btw-panel { border-radius: 14px; }
+    .hapla-btw-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--followup-line); flex-shrink: 0; }
+    .hapla-btw-panel .hapla-btw-header { display: contents; }
+    .hapla-btw-heading { grid-column: 1; grid-row: 1; min-width: 0; }
+    .hapla-btw-heading h2 { font-size: 14px; line-height: 20px; }
+    .hapla-btw-heading h2 span { display: none; }
+    .hapla-btw-header > .hapla-followup-tools { grid-column: 2; grid-row: 1 / span 2; align-self: center; gap: 0; }
+    .hapla-btw-header .hapla-followup-icon { width: 44px; height: 44px; }
+    .hapla-btw-panel .hapla-btw-compact-stop { display: inline-flex; min-height: 44px; padding-inline: 6px; font-size: 11px; }
+    .hapla-btw-context { display: none; }
+    .hapla-btw-panel .hapla-btw-picker { grid-column: 1; grid-row: 2; position: relative; min-width: 0; height: 24px; padding: 0; border: 0; }
+    .hapla-btw-panel .hapla-btw-picker::after { content: ''; position: absolute; right: 5px; top: 8px; width: 5px; height: 5px; border-right: 1px solid var(--followup-muted); border-bottom: 1px solid var(--followup-muted); transform: rotate(45deg); pointer-events: none; }
+    .hapla-btw-picker-label { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 18px; box-sizing: border-box; color: var(--followup-muted); font-size: 11px; line-height: 24px; }
+    /* Keep the real, zoom-safe native select and a 44px hit area over the title. */
+    .hapla-btw-panel .hapla-btw-picker select { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 44px; margin: 0; opacity: 0; font-size: 16px; }
+    .hapla-btw-picker:focus-within { outline: 2px solid var(--followup-accent); outline-offset: 2px; border-radius: 3px; }
+    .hapla-btw-messages { padding: 14px; }
+    .hapla-btw-message + .hapla-btw-message { margin-top: 17px; }
+    .hapla-btw-author { margin-bottom: 5px; font-size: 10px; }
+    .hapla-btw-user-text { padding: 8px 10px; border-radius: 10px; }
+    .hapla-btw-panel .hapla-btw-footer { display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 2px 10px; }
+    .hapla-btw-panel .hapla-btw-compose { width: auto; flex: 1; min-height: 40px; padding: 4px 2px; justify-content: flex-start; border: 0; background: transparent; color: var(--followup-muted); font-size: 11px !important; }
+    .hapla-btw-footer > div { min-height: 40px; margin: 0; }
+    .hapla-btw-footer > div > span, .hapla-btw-footer .hapla-btw-footer-stop { display: none; }
+    .hapla-btw-footer .hapla-followup-icon { width: 40px; height: 40px; }
+}
+@container hapla-btw (max-height: 160px) {
+    .hapla-btw-top .hapla-btw-picker { display: none; }
+}
+@container hapla-btw (max-height: 140px) {
+    .hapla-btw-top { display: flex; align-items: center; min-height: 44px; padding: 0 8px; border: 0; }
+    .hapla-btw-top .hapla-btw-header { display: contents; }
+    .hapla-btw-header > .hapla-followup-tools { margin-left: auto; }
+    .hapla-btw-panel .hapla-btw-footer { display: none; }
+}

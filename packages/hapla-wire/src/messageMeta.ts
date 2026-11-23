@@ -1,3 +1,4 @@
+import { codexInterruptTargetSchema } from './codexInteraction';
 import * as z from 'zod';
 
 export const MessageMetaSchema = z.object({
@@ -13,6 +14,9 @@ export const MessageMetaSchema = z.object({
   appendSystemPrompt: z.string().nullable().optional(),
   allowedTools: z.array(z.string()).nullable().optional(),
   disallowedTools: z.array(z.string()).nullable().optional(),
+  codexInputId: z.string().optional(),
+  codexInterruptTarget: codexInterruptTargetSchema.optional(),
+  codexFollowupMode: z.enum(['steer', 'queue', 'replace']).optional(),
   displayText: z.string().optional(),
 });
 export type MessageMeta = z.infer<typeof MessageMetaSchema>;

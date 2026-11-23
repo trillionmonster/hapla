@@ -43,7 +43,7 @@ import { formatPathRelativeToHome, formatLastSeen } from '@/utils/sessionUtils';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { Modal } from '@/modal';
-import { VoiceInput, VoiceInputStatus, type VoiceInputFeedback } from '@/components/VoiceInput';
+import { VoiceInput, VoiceInputStatus, type VoiceInputFeedback } from '@/components/OptionalVoiceInput';
 import { CodexControls } from '@/components/CodexControls';
 import { defaultCodexPreferences, type CodexPreferences } from '@/sync/codexPreferences';
 import { useWorkspaceAttachments } from '@/hooks/useWorkspaceAttachments';
@@ -987,7 +987,8 @@ function NewSessionScreen() {
 
     // Handle Enter/Cmd+Enter to send on web
     const handleKeyPress = React.useCallback((event: KeyPressEvent): boolean => {
-        if (Platform.OS === 'web' && event.key === 'Enter' && !event.shiftKey && agentInputEnterToSend) {
+        const touchKeyboard = Platform.OS === 'web' && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+        if (Platform.OS === 'web' && !touchKeyboard && event.key === 'Enter' && !event.shiftKey && agentInputEnterToSend) {
             if (canSend) {
                 handleSend();
                 return true;

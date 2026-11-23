@@ -18,6 +18,9 @@ import { execSync } from "child_process";
 import { CodexAppServerClient } from "./codexAppServerClient";
 import type { ReviewDecision, EventMsg } from "./codexAppServerTypes";
 import { getIntegrationEnv } from "@/testing/currentIntegrationEnv";
+import { CodexSideChats } from './codexSideChats';
+import type { CodexSideChat } from '@hapla/wire';
+import { join } from 'node:path';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,6 +76,7 @@ class CodexDriver {
     events: CodexEvent[] = [];
     permissionPolicy: PermissionPolicy = "approve";
     permissionCount = 0;
+    get backend() { return this.client; }
 
     constructor() {
         this.client = new CodexAppServerClient();
@@ -223,6 +227,44 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
                 await driver.close();
                 driver = null;
             }
+        });
+
+        it('supports steering and independent BTW chats before stopping and continuing the main task', async () => {
+            driver = new CodexDriver();
+            await driver.connect();
+            await driver.send('Remember the project name amber-river-73. Reply only with that name. Do not use tools.', { approvalPolicy: 'never', sandbox: 'read-only', cwd: integrationEnv.projectPath });
+            const parent = driver.backend.threadId;
+            const running = driver.continue('Our active project name is violet-harbor-81. Run the shell command sleep 45, wait until it finishes, then say MAIN_FINISHED. Do not skip the command.', { approvalPolicy: 'never', sandbox: 'read-only' });
+            const deadline = Date.now() + 30_000;
+            while (!driver.backend.turnId && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+            expect(driver.backend.turnId).toBeTruthy();
+            const active = driver.backend.turnId;
+            expect((await driver.backend.steerTurn('Additional instruction: after finishing include STEER_ACCEPTED.')).turnId).toBe(active);
+            let chats: CodexSideChat[] = [];
+            const sides = new CodexSideChats({ file: join(integrationEnv.envDir, 'side-chats.json'), sourceThread: () => parent,
+                sourceContext: async () => JSON.stringify((await driver!.backend.readThreadTurns()).find(turn => turn.id === driver!.backend.turnId)?.items ?? []),
+                createClient: () => new CodexAppServerClient(), changed: value => { chats = value; },
+                approval: async () => 'denied', userInput: async () => ({ answers: {} }),
+            });
+            try {
+                const accepted = await sides.submit({ id: 'side-one', text: 'What is our active project name? Reply only with that name. Do not use tools.' });
+                const sideDeadline = Date.now() + 60_000;
+                while ((!chats.find(chat => chat.id === accepted.id)?.messages.some(message => message.role === 'assistant') || chats.find(chat => chat.id === accepted.id)?.status === 'running') && Date.now() < sideDeadline) await new Promise(resolve => setTimeout(resolve, 100));
+                const chat = chats.find(chat => chat.id === accepted.id)!;
+                expect(chat.error).toBeUndefined();
+                expect(chat.threadId).not.toBe(parent);
+                expect(chat.messages.filter(message => message.role === 'assistant').map(message => message.text).join('\n')).toContain('violet-harbor-81');
+                expect(driver.backend.threadId).toBe(parent);
+                await sides.submit({ id: 'side-two', chatId: accepted.id, text: 'Run the shell command sleep 45, wait until it finishes, then say SIDE_FINISHED.' });
+                await sides.stop(accepted.id);
+                expect(chats.find(chat => chat.id === accepted.id)?.status).toBe('interrupted');
+                expect(driver.backend.threadId).toBe(parent);
+                await driver.interrupt();
+                await running;
+                driver.clearEvents();
+                await driver.continue('What project name did we agree on? Reply only with that name. Do not use tools.', { approvalPolicy: 'never', sandbox: 'read-only' });
+                expect(driver.getMessages().join('\n')).toContain('violet-harbor-81');
+            } finally { await sides.close(); }
         });
 
         it("should complete turn gracefully after permission cancel", async () => {

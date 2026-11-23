@@ -5,6 +5,8 @@
   <p>A self-hosted workspace for the coding agents, project files, and sessions on your own machines.</p>
 </div>
 
+**English** · [简体中文](docs/readme/README.zh-CN.md) · [Français](docs/readme/README.fr.md) · [Deutsch](docs/readme/README.de.md) · [Español](docs/readme/README.es.md) · [日本語](docs/readme/README.ja.md) · [한국어](docs/readme/README.ko.md) · [Русский](docs/readme/README.ru.md) · [العربية](docs/readme/README.ar.md) · [Português](docs/readme/README.pt.md)
+
 [Quick start](#quick-start) · [Normal and Coder mode](#normal-and-coder-mode) · [Session guide](#everyday-workflow) · [Media and downloads](#media-and-downloads) · [Worker isolation](#isolate-cli-workers) · [Architecture](#architecture)
 
 Start coding on a workstation and pick up the same conversation on your phone.

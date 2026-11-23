@@ -1,3 +1,4 @@
+import { codexInterruptTargetSchema, type CodexInterruptTarget } from '@hapla/wire';
 import { z } from 'zod'
 import type { Update, UpdateMachineBody, CodexRuntimeState } from '@hapla/wire';
 import { UsageSchema } from '@/claude/types'
@@ -261,6 +262,11 @@ export const MessageMetaSchema = z.object({
   appendSystemPrompt: z.string().nullable().optional(), // Append to system prompt for this message (null = reset)
   allowedTools: z.array(z.string()).nullable().optional(), // Allowed tools for this message (null = reset)
   disallowedTools: z.array(z.string()).nullable().optional(), // Disallowed tools for this message (null = reset)
+  codexInputId: z.string().optional(),
+  // Wire uses Zod 3; the CLI uses Zod 4. Validate across the boundary
+  // without nesting a foreign schema inside a Zod 4 object.
+  codexInterruptTarget: z.custom<CodexInterruptTarget>(value => codexInterruptTargetSchema.safeParse(value).success).optional(),
+  codexFollowupMode: z.enum(['steer', 'queue', 'replace']).optional(),
   displayText: z.string().optional(),
   branchId: z.string().optional(),
 })
@@ -404,6 +410,8 @@ export type Metadata = {
 };
 
 export type AgentState = {
+  codexInputs?: import('@hapla/wire').CodexInputState;
+  codexSideChats?: import('@hapla/wire').CodexSideChat[];
   codexRuntime?: CodexRuntimeState | null;
   controlledByUser?: boolean | null | undefined
   requests?: {

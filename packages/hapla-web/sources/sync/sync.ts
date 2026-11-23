@@ -65,6 +65,8 @@ type OutboxMessage = {
 };
 
 type SendMessageOptions = {
+    codexFollowupMode?: import('@hapla/wire').CodexFollowupMode;
+    codexInterruptTarget?: import('@hapla/wire').CodexInterruptTarget;
     displayText?: string;
     source?: 'chat' | 'new_session' | 'option' | 'question';
     images?: Array<{ data: string; mediaType: string; previewData?: string }>;
@@ -717,6 +719,9 @@ class Sync {
             model,
             effort,
             ...(session.metadata?.flavor === 'codex' ? resolveMessageCodexPreferenceMeta(session, machine?.metadata) : {}),
+            ...(options?.codexInterruptTarget ? { codexInterruptTarget: options.codexInterruptTarget } : {}),
+            ...(options?.codexFollowupMode ? { codexFollowupMode: options.codexFollowupMode } : {}),
+            ...(session.metadata?.flavor === 'codex' ? { codexInputId: localId } : {}),
             fallbackModel,
             appendSystemPrompt: systemPrompt,
             branchId: options?.branchId ?? session.metadata?.activeCodexBranchId,

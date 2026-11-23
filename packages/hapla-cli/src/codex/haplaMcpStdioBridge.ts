@@ -1,9 +1,9 @@
 /**
  * Hapla MCP STDIO Bridge
  *
- * Minimal STDIO MCP server exposing a single tool `change_title`.
- * On invocation it forwards the tool call to an existing Hapla HTTP MCP server
- * using the StreamableHTTPClientTransport.
+ * Exposes the tools registered by the existing Hapla HTTP MCP server, including
+ * title management and persistent development previews. Tool schemas and calls
+ * pass through StreamableHTTPClientTransport so both transports stay in sync.
  *
  * Configure the target HTTP MCP URL via env var `HAPLA_HTTP_MCP_URL` or
  * via CLI flag `--url <http://127.0.0.1:PORT>`.
@@ -11,11 +11,11 @@
  * Note: This process must not print to stdout as it would break MCP STDIO.
  */
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { z } from 'zod';
+import { CallToolRequestSchema, CallToolResultSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 function parseArgs(argv: string[]): { url: string | null } {
   let url: string | null = null;
@@ -58,37 +58,29 @@ export async function main() {
   }
 
   // Create STDIO MCP server
-  const server = new McpServer({
+  const server = new Server({
     name: 'Hapla MCP Bridge',
     version: '1.0.0',
-  });
+  }, { capabilities: { tools: {} } });
 
-  // Register the single tool and forward to HTTP MCP
-  server.registerTool(
-    'change_title',
-    {
-      description: 'Change the title of the current chat session',
-      title: 'Change Chat Title',
-      inputSchema: {
-        title: z.string().describe('The new title for the chat session'),
-      },
-    },
-    async (args) => {
+  server.setRequestHandler(ListToolsRequestSchema, async (request) => {
+    const client = await ensureHttpClient();
+    return await client.listTools(request.params);
+  });
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         const client = await ensureHttpClient();
-        const response = await client.callTool({ name: 'change_title', arguments: args });
-        // Pass-through response from HTTP server
-        return response as any;
+        return await client.callTool({ ...request.params, arguments: request.params.arguments ?? {} }, CallToolResultSchema);
       } catch (error) {
         return {
           content: [
-            { type: 'text', text: `Failed to change chat title: ${error instanceof Error ? error.message : String(error)}` },
+            { type: 'text', text: `Hapla tool ${request.params.name} failed: ${error instanceof Error ? error.message : String(error)}` },
           ],
           isError: true,
         };
       }
-    }
-  );
+  });
+  server.onclose = () => { void httpClient?.close(); };
 
   // Start STDIO transport
   const stdio = new StdioServerTransport();
