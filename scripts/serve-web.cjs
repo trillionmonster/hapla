@@ -101,7 +101,7 @@ const server = createServer((request, response) => {
     try {
         const referrer = new URL(request.headers.referer || '');
         const match = /^\/preview\/([a-f0-9]{32})(?:\/|$)/.exec(referrer.pathname);
-        if (match && referrer.host === request.headers.host && !(request.url || '').startsWith('/preview/')) {
+        if (match && referrer.host === String(request.headers['x-forwarded-host'] || request.headers.host).split(',')[0].trim() && !(request.url || '').startsWith('/preview/')) {
             response.writeHead(307, { Location: `/preview/${match[1]}${request.url}`, 'Cache-Control': 'no-store' });
             response.end(); return;
         }

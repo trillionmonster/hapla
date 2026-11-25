@@ -1,3 +1,4 @@
+import { sessionConfigurationSchema } from '@hapla/wire/sessionConfiguration';
 /**
  * Session Metadata Factory
  *
@@ -89,7 +90,14 @@ export function createSessionMetadata(opts: CreateSessionMetadataOptions): Sessi
         }
     }
 
+    let executionConfiguration: Metadata['executionConfiguration'];
+    if (process.env.HAPLA_SESSION_CONFIGURATION) {
+        const parsed = sessionConfigurationSchema.safeParse(JSON.parse(process.env.HAPLA_SESSION_CONFIGURATION));
+        if (parsed.success) executionConfiguration = parsed.data;
+    }
     const metadata: Metadata = {
+        launchSpecId: process.env.HAPLA_LAUNCH_SPEC_ID || undefined,
+        executionConfiguration,
         path: process.cwd(),
         host: os.hostname(),
         version: packageJson.version,

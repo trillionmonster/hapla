@@ -64,6 +64,7 @@ export async function maybeCleanupWorktree(
     );
 
     if (shouldDelete) {
-        await removeWorktree(machineId, sessionPath).catch(() => {});
+        const result = await removeWorktree(machineId, sessionPath);
+        if (!result.success) Modal.alert(t('common.error'), result.error ?? 'Worktree removal failed. Files were kept.');
     }
 }

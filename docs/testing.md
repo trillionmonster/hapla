@@ -106,3 +106,14 @@ queue isolation, concurrent edits, offline drafts, BTW interruption, terminal
 execution, structured questions, live freshness, narrow layouts and proxy access.
 Keep actions, results, recordings and failure evidence together in ignored storage.
 Do not substitute component mocks or a visual review for these workflows.
+
+## Coding browser regression
+
+The [coding workbench runner](../scripts/acceptance/README.md#coding-workbench-regression)
+uses the real app, Git and pinned Codex with a local deterministic Responses
+transport, so browser regressions need no provider account or quota.
+`.github/workflows/coding-browser.yml` runs desktop, Android/Chromium and
+iPhone/WebKit emulations inside the isolated `dev-hapla` Docker graph. It records
+interaction evidence and uses an isolated `gh` fixture for PR operations. Passing
+this workflow does not establish live GitHub authentication or physical-device
+behavior.

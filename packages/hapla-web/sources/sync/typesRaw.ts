@@ -33,6 +33,7 @@ export type AgentEvent = z.infer<typeof agentEventSchema>;
 
 const sessionTextEventSchema = z.object({
     t: z.literal('text'),
+    inputEdit: z.object({ messageId: z.string(), revision: z.number() }).optional(),
     text: z.string(),
     thinking: z.boolean().optional(),
     summary: z.boolean().optional(),
@@ -654,6 +655,7 @@ function normalizeSessionEnvelope(
     }
 
     if (envelope.ev.t === 'text') {
+        if (envelope.ev.inputEdit) meta = { ...meta, inputEdit: envelope.ev.inputEdit };
         if (envelope.ev.summary === true) meta = { ...meta, reasoningSummary: true, streamId: meta?.streamId ?? envelope.id };
         if (envelope.role === 'agent' && envelope.ev.delivery === 'async' && envelope.ev.questions?.length) {
             meta = { ...meta, asyncQuestion: { id: envelope.id, questions: envelope.ev.questions } };

@@ -1,0 +1,43 @@
+name: Coding browser regression
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: coding-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare private development configuration
+        run: |
+          mkdir -p .runtime/coding-ci
+          node -e 'const fs=require("fs"),crypto=require("crypto");const version=require("./packages/hapla-cli/src/codex/codexProtocolSnapshot.json").cliVersion;fs.writeFileSync(".runtime/coding-ci/dev.env",`HAPLA_MASTER_SECRET=${crypto.randomBytes(32).toString("hex")}\nCODEX_VERSION=${version}\n`,{mode:0o600})'
+      - name: Build isolated development runner
+        run: docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml up --build -d coding-cli
+      - name: Install and build inside Docker
+        run: docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml exec -T -e CI=true coding-cli bash -c 'pnpm install --frozen-lockfile && pnpm build && env -u HAPLA_SERVER_URL pnpm web:build'
+      - name: Start development Web and Server
+        run: |
+          docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml up -d coding-server coding-web
+          for attempt in $(seq 1 60); do curl --fail --silent http://127.0.0.1:24005/health && curl --fail --silent --output /dev/null http://127.0.0.1:23345/ && exit 0; sleep 1; done
+          exit 1
+      - name: Real browser and native Codex with local Responses fixture
+        run: |
+          for profile in desktop android iphone; do
+            docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml exec -T -e PROFILE="$profile" -e HAPLA_ACCEPTANCE_OUTPUT="/repo/artifacts/coding-browser/$profile" coding-cli node_modules/.bin/tsx --tsconfig packages/hapla-cli/tsconfig.json scripts/acceptance/coding-workbench.mts
+          done
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coding-browser-evidence
+          path: artifacts/coding-browser
+          if-no-files-found: ignore
+      - name: Stop this job's development services
+        if: always()
+        run: docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml stop coding-cli coding-server coding-web

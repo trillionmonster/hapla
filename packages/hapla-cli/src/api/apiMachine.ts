@@ -1,3 +1,5 @@
+import { spawnSessionReceipts } from './spawnSessionReceipt';
+import { registerGitHandlers } from '@/modules/git/registerGitHandlers';
 import { connectPreviewTunnel } from './previewTunnel';
 /**
  * WebSocket client for machine/daemon communication with the Hapla server
@@ -88,7 +90,7 @@ type MachineRpcHandlers = {
     resumeSession?: (request: {
         sessionId: string;
         conversationId: string;
-        metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId'>;
+        metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId' | 'launchSpecId' | 'executionConfiguration'>;
     }) => Promise<SpawnSessionResult>;
     stopSession: (sessionId: string) => boolean;
     requestShutdown: () => void;
@@ -110,7 +112,7 @@ export class ApiMachineClient {
     private resumeSessionHandler: ((request: {
         sessionId: string;
         conversationId: string;
-        metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId'>;
+        metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId' | 'launchSpecId' | 'executionConfiguration'>;
     }) => Promise<SpawnSessionResult>) | null = null;
     private reconnectInterval: NodeJS.Timeout | null = null;
 
@@ -129,6 +131,7 @@ export class ApiMachineClient {
         // Machine RPCs remain available when a session exits. Container mounts
         // may live outside the OS home, so allow an explicit operator root.
         registerCommonHandlers(this.rpcHandlerManager, this.workspaceRoot);
+        registerGitHandlers(this.rpcHandlerManager, this.workspaceRoot);
         this.rpcHandlerManager.registerHandler('browse-directory', browseMachineDirectory);
     }
 
@@ -142,7 +145,8 @@ export class ApiMachineClient {
         registerCloudFileHandlers(this.rpcHandlerManager, this.workspaceRoot, this.token, resolveFileWorkspace);
         this.resumeSessionHandler = resumeSession ?? null;
 
-        const spawnSessionRpcHandler = async (params: any) => {
+        const spawnReceipts = spawnSessionReceipts();
+        const spawnSessionRpcHandler = (params: any) => spawnReceipts(params?.requestId, async () => {
             const { directory, sessionId, machineId, approvedNewDirectoryCreation, agent, environmentVariables, token } = params || {};
             logger.debug(`[API MACHINE] Spawning session with params: ${JSON.stringify(params)}`);
 
@@ -155,16 +159,16 @@ export class ApiMachineClient {
             switch (result.type) {
                 case 'success':
                     logger.debug(`[API MACHINE] Spawned session ${result.sessionId}`);
-                    return { type: 'success', sessionId: result.sessionId };
+                    return { type: 'success' as const, sessionId: result.sessionId };
 
                 case 'requestToApproveDirectoryCreation':
                     logger.debug(`[API MACHINE] Requesting directory creation approval for: ${result.directory}`);
                     return { type: 'requestToApproveDirectoryCreation', directory: result.directory };
 
                 case 'error':
-                    throw new Error(result.errorMessage);
+                    return { ...result, confirmed: true };
             }
-        };
+        });
         this.rpcHandlerManager.registerHandler('spawn-hapla-session', spawnSessionRpcHandler);
 
         this.syncResumeSessionRpcRegistration(detectResumeSupport().rpcAvailable);

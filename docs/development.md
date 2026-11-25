@@ -31,9 +31,10 @@ instances with `hapla-`: `./deploy.sh --instance dev-hapla` selects
 `hapla-dev-hapla`, so it does not select this development stack.
 
 If `dev-hapla` does not exist and runtime validation is needed, prepare its own
-Compose configuration and resources. The repository currently supplies reusable
-Server/Web and worker templates, rather than a dedicated dev stack template.
-Use [`docker-compose.selfhost.yml`](../docker-compose.selfhost.yml),
+Compose configuration and resources. For coding-workbench development, use the isolated
+[`coding acceptance stack`](../scripts/acceptance/compose.coding.yml) and its
+[runner instructions](../scripts/acceptance/README.md#coding-workbench-regression).
+For other development layouts, use [`docker-compose.selfhost.yml`](../docker-compose.selfhost.yml),
 [`deploy/compose.worker.yml`](../deploy/compose.worker.yml), and the corresponding
 Dockerfiles as inputs; retain the isolation requirements below. Keep local paths,
 chosen ports, and secrets in ignored private configuration. Documentation-only

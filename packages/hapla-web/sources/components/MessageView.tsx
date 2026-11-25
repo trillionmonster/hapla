@@ -159,9 +159,10 @@ function UserTextBlock(props: {
   const handleOptionPress = React.useCallback((option: Option) => {
     sync.sendMessage(props.sessionId, option.title, { source: 'option' });
   }, [props.sessionId]);
+  const [editDraft, setEditDraft] = React.useState<string>();
   const editMessage = React.useCallback(async () => {
     const nextText = await Modal.prompt('从这里重新编辑', '原分支会保留，并创建一个新的 Codex 分支。', {
-      defaultValue: props.message.text,
+      defaultValue: editDraft ?? props.message.text,
       confirmText: '创建分支',
     });
     if (!nextText?.trim() || props.userOrdinal === undefined || props.userOrdinal < 0) return;
@@ -170,16 +171,18 @@ function UserTextBlock(props: {
       const result = await sessionForkCodexThread(targetSessionId, {
         userOrdinal: props.userOrdinal,
         userText: props.message.text,
-        forkMessageId: props.message.id,
+        forkMessageId: props.message.sourceMessageId ?? props.message.id,
         forkMessageCreatedAt: props.message.createdAt,
         label: nextText.trim().slice(0, 36),
       });
+      setEditDraft(undefined);
       await sync.sendMessage(targetSessionId, nextText.trim(), { source: 'chat', branchId: result.branchId });
       if (targetSessionId !== props.sessionId) navigateToSession(targetSessionId);
     } catch (error) {
+      setEditDraft(nextText);
       Modal.alert('无法创建分支', error instanceof Error ? error.message : String(error));
     }
-  }, [navigateToSession, prepareSessionForEdit, props.message.createdAt, props.message.id, props.message.text, props.sessionId, props.userOrdinal]);
+  }, [editDraft, navigateToSession, prepareSessionForEdit, props.message.createdAt, props.message.id, props.message.sourceMessageId, props.message.text, props.sessionId, props.userOrdinal]);
 
   return (
     <View style={styles.userMessageContainer}>

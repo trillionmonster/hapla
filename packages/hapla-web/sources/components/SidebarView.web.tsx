@@ -30,6 +30,9 @@ export const SidebarView = React.memo(function SidebarView() {
                         <Text style={{ color: statusColor, fontSize: theme.typography.caption.fontSize, textTransform: 'capitalize' }}>{socket.status}</Text>
                     </View>
                 </View>
+                <Pressable accessibilityLabel="代理管理" onPress={() => router.push('/previews')} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 10, backgroundColor: pressed ? theme.colors.surfacePressed : 'transparent', alignItems: 'center', justifyContent: 'center' })}>
+                    <Ionicons name="globe-outline" size={19} color={theme.colors.text} />
+                </Pressable>
                 <Pressable accessibilityLabel="Settings" onPress={() => router.push('/settings')} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 10, backgroundColor: pressed ? theme.colors.surfacePressed : 'transparent', alignItems: 'center', justifyContent: 'center' })}>
                     <Ionicons name="settings-outline" size={19} color={theme.colors.text} />
                 </Pressable>

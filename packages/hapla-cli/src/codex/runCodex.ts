@@ -1,3 +1,7 @@
+import { TurnInputLedger } from './turnInputLedger';
+import { sessionConfigurationValuesSchema } from '@hapla/wire/sessionConfiguration';
+import { prepareRuntimeLaunch } from '@/resume/runtimeLaunchSpec';
+import { installCodexCheckpoints } from '@/modules/git/codexCheckpoints';
 import { render } from "ink";
 import React from "react";
 import { ApiClient } from '@/api/api';
@@ -107,9 +111,11 @@ export async function runCodex(opts: {
     // Use shared PermissionMode type for cross-agent compatibility
     type PermissionMode = import('@/api/types').PermissionMode;
     interface EnhancedMode {
+        sourceMessageId?: string;
+        sourceMessageCreatedAt?: number;
         branchId?: string;
         permissionMode: PermissionMode;
-        model?: string;
+        model?: string | null;
         effort?: import('./codexAppServerTypes').ReasoningEffort | null;
         verbosity?: 'low' | 'medium' | 'high' | null;
         serviceTier?: string | null;
@@ -142,6 +148,7 @@ export async function runCodex(opts: {
         process.exit(1);
     }
     logger.debug(`Using machineId: ${machineId}`);
+    prepareRuntimeLaunch('codex', opts.codexArgs ?? [], opts.noSandbox);
     const codexModels = await discoverCodexModels(opts.codexArgs ?? []);
     await api.getOrCreateMachine({
         machineId,
@@ -170,6 +177,7 @@ export async function runCodex(opts: {
     // (assigned later at line ~385 after client setup)
     let permissionHandler: CodexPermissionHandler;
     let client!: CodexAppServerClient;
+    let reattachCodingCheckpoints: ((next: ApiSessionClient) => void) | undefined;
     let abortInProgress: Promise<void> | null = null;
     let resumeArtifactBacklog = () => {};
     const { session: initialSession, reconnectionHandle } = setupOfflineReconnection({
@@ -180,6 +188,7 @@ export async function runCodex(opts: {
         response,
         onSessionSwap: (newSession) => {
             session = newSession;
+            reattachCodingCheckpoints?.(newSession);
             newSession.on('connected', resumeArtifactBacklog);
             resumeArtifactBacklog();
             // Update permission handler with new session to avoid stale reference
@@ -202,6 +211,8 @@ export async function runCodex(opts: {
     });
     let inputSubmission: Promise<void> = Promise.resolve();
     let mainTurnInputText = '';
+    let activeSourceMessageId: string | undefined;
+    const turnInputs = new TurnInputLedger(join(configuration.haplaHomeDir, 'codex-turn-inputs', `${session.getMetadata()?.conversationRootSessionId ?? session.sessionId}.json`));
     let sideChats: CodexSideChats | undefined;
     const interactiveAppScopes = new Map<string, InteractiveAppScope>();
     const sessionStreams = new CodexSessionStreamBuffer((snapshot) => session.sendSessionStream(snapshot));
@@ -223,8 +234,9 @@ export async function runCodex(opts: {
 
     // Track current overrides to apply per message
     // Use shared PermissionMode type from api/types for cross-agent compatibility
-    let currentPermissionMode: import('@/api/types').PermissionMode = 'yolo';
-    let currentModel: string | undefined = undefined;
+    let currentPermissionMode: import('@/api/types').PermissionMode = session.getMetadata()?.executionConfiguration?.values.permissionMode ?? 'default';
+    let currentModel: string | null | undefined = undefined;
+    let submittedModel: string | undefined;
     let currentEffort: import('./codexAppServerTypes').ReasoningEffort | null | undefined = undefined;
     let currentVerbosity: EnhancedMode['verbosity'];
     let currentServiceTier: EnhancedMode['serviceTier'];
@@ -236,7 +248,6 @@ export async function runCodex(opts: {
         let messagePermissionMode = currentPermissionMode;
         if (message.meta?.permissionMode) {
             messagePermissionMode = message.meta.permissionMode as import('@/api/types').PermissionMode;
-            currentPermissionMode = messagePermissionMode;
             logger.debug(`[Codex] Permission mode updated from user message to: ${currentPermissionMode}`);
         } else {
             logger.debug(`[Codex] User message received with no permission mode override, using current: ${currentPermissionMode}`);
@@ -245,8 +256,7 @@ export async function runCodex(opts: {
         // Resolve model; explicit null resets to default (undefined)
         let messageModel = currentModel;
         if (message.meta?.hasOwnProperty('model')) {
-            messageModel = message.meta.model || undefined;
-            currentModel = messageModel;
+            messageModel = message.meta.model;
             logger.debug(`[Codex] Model updated from user message: ${messageModel || 'reset to default'}`);
         } else {
             logger.debug(`[Codex] User message received with no model override, using current: ${currentModel || 'default'}`);
@@ -257,20 +267,18 @@ export async function runCodex(opts: {
             messageEffort = message.meta.effort
                 ? message.meta.effort as import('./codexAppServerTypes').ReasoningEffort
                 : null;
-            currentEffort = messageEffort;
             logger.debug(`[Codex] Effort updated from user message: ${messageEffort || 'reset to default'}`);
         }
 
-        if (message.meta?.hasOwnProperty('verbosity')) currentVerbosity = message.meta.verbosity;
-        if (message.meta?.hasOwnProperty('serviceTier')) currentServiceTier = message.meta.serviceTier;
-        if (message.meta?.collaborationMode) currentCollaborationMode = message.meta.collaborationMode;
         const enhancedMode: EnhancedMode = {
             permissionMode: messagePermissionMode,
             model: messageModel,
             effort: messageEffort,
-            verbosity: currentVerbosity, serviceTier: currentServiceTier, collaborationMode: currentCollaborationMode,
+            verbosity: message.meta?.hasOwnProperty('verbosity') ? message.meta.verbosity : currentVerbosity, serviceTier: message.meta?.hasOwnProperty('serviceTier') ? message.meta.serviceTier : currentServiceTier, collaborationMode: message.meta?.collaborationMode ?? currentCollaborationMode,
         };
         enhancedMode.branchId = message.meta?.branchId;
+        enhancedMode.sourceMessageId = message.delivery?.id;
+        enhancedMode.sourceMessageCreatedAt = message.delivery?.createdAt;
         const id = message.meta?.codexInputId ?? randomUUID();
         const text = getUserMessageText(message);
         inputSubmission = inputSubmission.then(async () => {
@@ -278,6 +286,17 @@ export async function runCodex(opts: {
             pendingInputPreparations++;
             try {
                 const input = await getCodexInputItemsAsync(message, { serverUrl: configuration.serverUrl, token: session.authToken });
+                if (enhancedMode.branchId && client.threadId && enhancedMode.branchId !== activeCodexBranchId) {
+                    messageQueue.pushMultimodal(input, enhancedMode, id, true);
+                    messageQueue.fail(id, '这条消息属于其他分支，请切换到对应分支后重试');
+                    return;
+                }
+                currentPermissionMode = enhancedMode.permissionMode;
+                currentModel = enhancedMode.model;
+                currentEffort = enhancedMode.effort;
+                currentVerbosity = enhancedMode.verbosity;
+                currentServiceTier = enhancedMode.serviceTier;
+                currentCollaborationMode = enhancedMode.collaborationMode;
                 const delivery = message.meta?.codexFollowupMode ?? 'steer';
                 const steer = delivery === 'steer' && !!(client?.turnId || client?.startId) && !abortInProgress;
                 messageQueue.pushMultimodal(input, enhancedMode, id, steer || delivery === 'replace');
@@ -295,7 +314,9 @@ export async function runCodex(opts: {
                         while (client.startId && !client.turnId && !abortInProgress && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
                         if (!client.turnId && !client.startId) { messageQueue.release(id); messageQueue.start(id); }
                         else {
+                            if (enhancedMode.branchId && enhancedMode.branchId !== activeCodexBranchId) throw new Error('分支已变化，请切换回消息所属分支');
                             await client.steerTurnContent(input as InputItem[], id);
+                            turnInputs.record(enhancedMode.sourceMessageId, { threadId: client.threadId!, turnId: client.turnId!, steered: true });
                             mainTurnInputText += `\n${text}`;
                             messageQueue.acknowledge(id, 'steered');
                         }
@@ -544,8 +565,22 @@ export async function runCodex(opts: {
     //
 
     client = new CodexAppServerClient(sandboxConfig, opts.codexArgs ?? []);
+    client.setConfigurationHandler(configuration => {
+        if (configuration.permissionMode) currentPermissionMode = configuration.permissionMode;
+        void session.updateMetadata(metadata => ({ ...metadata, effectiveConfiguration: configuration,
+            currentModelCode: configuration.model ?? metadata.currentModelCode,
+            currentThoughtLevelCode: configuration.effort ?? undefined,
+            currentOperatingModeCode: configuration.permissionMode ?? metadata.currentOperatingModeCode,
+        }));
+    });
     session.attachCodexProtocolJournal(client.protocolJournalPath);
     let activeCodexBranchId = session.getMetadata()?.activeCodexBranchId ?? 'main';
+    const codingCheckpoints = installCodexCheckpoints({ session, client, root: process.cwd(),
+        branch: () => activeCodexBranchId, setBranch: id => { activeCodexBranchId = id; },
+        isBusy: () => thinking || hasUnsubmittedInput || pendingInputPreparations > 0 || activeInteractiveToolCalls > 0 || codexActiveSubagents.size > 0 || messageQueue.size() > 0 || sideChats?.snapshot().some(chat => chat.status === 'running' || chat.status === 'stopping') === true,
+    });
+
+    reattachCodingCheckpoints = codingCheckpoints.attach;
 
     const waitForCodexThread = async (): Promise<void> => {
         const deadline = Date.now() + 15_000;
@@ -562,8 +597,11 @@ export async function runCodex(opts: {
         // moment to finish thread/resume; keep the single fork RPC pending until
         // that state is ready instead of racing it or asking the user to retry.
         await waitForCodexThread();
+        const inputIdentity = typeof params?.forkMessageId === 'string' ? turnInputs.get(params.forkMessageId) : undefined;
+        if (inputIdentity?.steered) throw new Error('这条补充属于同一执行轮次，无法单独从中间编辑；请编辑该轮的第一条问题');
         const turns = await client.readThreadTurns();
         const forkPoint = resolveCodexForkPoint(turns, {
+            turnId: inputIdentity?.turnId,
             userOrdinal: params?.userOrdinal,
             userText: params?.userText,
         });
@@ -831,7 +869,7 @@ export async function runCodex(opts: {
         const images = Array.isArray(params.images) ? params.images : [];
         if (images.length > 8 || images.some((image: any) => typeof image.url !== 'string' || typeof image.mediaType !== 'string')) throw new Error('无效的旁问图片');
         const input = images.length ? await getCodexInputItemsAsync({ role: 'user', content: { type: 'multimodal', parts: [...images.map((image: any) => ({ type: 'image' as const, source: { type: 'url' as const, url: image.url, media_type: image.mediaType } })), { type: 'text', text: params.text }] } }, { serverUrl: configuration.serverUrl, token: session.authToken }) : undefined;
-        return sideChats!.submit({ id: params.id, chatId: params.chatId, text: params.text, input: input as InputItem[] | undefined });
+        return sideChats!.submit({ id: params.id, chatId: params.chatId, text: params.text, input: input as InputItem[] | undefined, configuration: sessionConfigurationValuesSchema.parse(params.configuration ?? {}) });
     });
     session.rpcHandlerManager.registerHandler('codex-side-action', async (params: any) => {
         if (params?.action === 'stop') await sideChats!.stop(params.id);
@@ -842,17 +880,31 @@ export async function runCodex(opts: {
     session.rpcHandlerManager.registerHandler('codex-queue', async (params: any) => {
         switch (params?.action) {
             case 'list': break;
-            case 'update': messageQueue.update(params.id, params.revision, params.text); break;
+            case 'update': {
+                if (typeof params.text !== 'string' || !params.text.trim() || params.text.length > 128 * 1024) throw new Error('无效的队列内容');
+                const item = messageQueue.get(params.id, params.revision);
+                messageQueue.hold(item.id);
+                try {
+                    await session.sendSessionProtocolMessage(createEnvelope('user', { t: 'text', text: params.text,
+                        inputEdit: { messageId: item.mode.sourceMessageId ?? item.id, revision: item.revision + 1 },
+                    }), item.mode.branchId ?? activeCodexBranchId);
+                    messageQueue.release(item.id);
+                    messageQueue.update(params.id, params.revision, params.text);
+                } catch (error) { messageQueue.release(item.id); throw error; }
+                break;
+            }
             case 'remove': messageQueue.remove(params.id, params.revision); break;
             case 'reorder': messageQueue.reorder(params.ids); break;
             case 'pause': messageQueue.pause(); break;
             case 'start': messageQueue.start(params.id); break;
             case 'inject': {
                 const item = messageQueue.get(params.id, params.revision);
+                if (item.mode.branchId && item.mode.branchId !== activeCodexBranchId) throw new Error('这条排队消息属于其他分支，请切换到对应分支后发送');
                 if (client.turnId) {
                     messageQueue.hold(item.id);
                     try {
                         await client.steerTurnContent(item.contentBlocks as InputItem[] ?? [{ type: 'text', text: item.message }], item.id);
+                        turnInputs.record(item.mode.sourceMessageId, { threadId: client.threadId!, turnId: client.turnId!, steered: true });
                         mainTurnInputText += `\n${item.message}`;
                         messageQueue.acknowledge(item.id, 'steered');
                     } catch (error) { messageQueue.fail(item.id, error instanceof Error ? error.message : String(error)); throw error; }
@@ -885,6 +937,13 @@ export async function runCodex(opts: {
             if (typeof protocol.turnId === 'string' && currentTurnId
                 && protocol.turnId !== currentTurnId && msg.type !== 'task_started' && !knownLateCommandCompletion) return;
             if (msg.type === 'exec_command_end' && protocol.turnId !== currentTurnId && !knownLateCommandCompletion) return;
+        }
+        if (msg.type === 'token_count') {
+            const last = msg.last as { totalTokens?: number } | undefined;
+            const used = last?.totalTokens; const capacity = msg.modelContextWindow;
+            if (typeof used === 'number' && Number.isFinite(used) && used >= 0) void session.updateMetadata(metadata => ({ ...metadata,
+                contextUsage: { usedTokens: used, contextWindow: typeof capacity === 'number' && capacity > 0 ? capacity : null, model: submittedModel ?? metadata.currentModelCode, threadId: client.threadId ?? undefined },
+            }));
         }
         const nextRuntime = reduceCodexRuntimeEvent(codexRuntime, msg);
         if (msg.type === 'codex_runtime_started' && nextRuntime === codexRuntime) return;
@@ -1110,6 +1169,7 @@ export async function runCodex(opts: {
             currentTurnId = mapped.currentTurnId;
             if (msg.type === 'task_started') {
                 lastCompletedTurnId = null;
+                if (currentTurnId && client.threadId) turnInputs.record(activeSourceMessageId, { threadId: client.threadId, turnId: currentTurnId });
             }
             codexStartedSubagents = mapped.startedSubagents;
             codexActiveSubagents = mapped.activeSubagents;
@@ -1265,10 +1325,12 @@ export async function runCodex(opts: {
             if (!message) {
                 break;
             }
+            await codingCheckpoints.waitForRestore();
             hasUnsubmittedInput = true;
             if (!await sleepBarrier.waitForTurn()) break;
             if (!await turnBarrier.wait()) break;
 
+            let turnCheckpoint: import('@hapla/wire').GitCheckpoint | null = null;
             // Display user messages in the UI
             messageBuffer.addMessage(message.message, 'user');
 
@@ -1288,7 +1350,7 @@ export async function runCodex(opts: {
                 // Start thread on first turn (thread persists across mode changes)
                 if (!client.hasActiveThread()) {
                     const startedThread = await client.startThread({
-                        model: message.mode.model,
+                        model: message.mode.model ?? undefined,
                         verbosity: message.mode.verbosity,
                         cwd: process.cwd(),
                         approvalPolicy: executionPolicy.approvalPolicy,
@@ -1363,8 +1425,14 @@ export async function runCodex(opts: {
                 // Media preparation can yield to a provider compaction. Keep
                 // this exact batch here until its authoritative terminal event.
                 if (!await turnBarrier.wait()) break;
+                if (codingCheckpoints.isRestoring()) throw new Error('Workspace restore is in progress.');
+                turnCheckpoint = await codingCheckpoints.begin(message.message, { forkMessageId: message.mode.sourceMessageId, forkMessageCreatedAt: message.mode.sourceMessageCreatedAt }).catch(error => {
+                    session.sendSessionEvent({ type: 'message', message: `Checkpoint unavailable: ${error instanceof Error ? error.message : String(error)}` }); return null;
+                });
                 hasUnsubmittedInput = false;
                 mainTurnInputText = message.message;
+                activeSourceMessageId = message.mode.sourceMessageId;
+                submittedModel = message.mode.model ?? session.getMetadata()?.currentModelCode;
                 const result = contentBlocks
                     ? await client.sendTurnContentAndWait(
                         contentBlocks,
@@ -1385,6 +1453,9 @@ export async function runCodex(opts: {
                         sandbox: executionPolicy.sandbox,
                         networkAccess: shouldAutoDisplayGeneratedImages,
                     });
+                if (turnCheckpoint) await codingCheckpoints.finish(turnCheckpoint.id, currentTurnId ?? lastCompletedTurnId ?? undefined, result.aborted ? 'interrupted' : 'complete')
+                    .catch(error => session.sendSessionEvent({ type: 'message', message: `Checkpoint finalization failed: ${String(error)}` }));
+                turnCheckpoint = null;
                 if (message.id) messageQueue.acknowledge(message.id, result.aborted ? 'interrupted' : 'completed');
                 const completedMediaTurnId = currentTurnId ?? lastCompletedTurnId;
                 if (!result.aborted && completedMediaTurnId) {
@@ -1393,7 +1464,7 @@ export async function runCodex(opts: {
                 if (!result.aborted && message.mode.model) {
                     session.updateMetadata((currentMetadata) => ({
                         ...currentMetadata,
-                        currentModelCode: message.mode.model,
+                        currentModelCode: message.mode.model ?? undefined,
                     }));
                 }
                 first = false;
@@ -1423,6 +1494,7 @@ export async function runCodex(opts: {
                     session.sendSessionEvent({ type: 'message', message: recoveryMessage });
                 }
             } finally {
+                if (turnCheckpoint) await codingCheckpoints.finish(turnCheckpoint.id, currentTurnId ?? lastCompletedTurnId ?? undefined, 'failed').catch(error => logger.warn('[Codex] Checkpoint finalization failed', error));
                 turnMediaDelivery?.cancel();
                 turnMediaDelivery = null;
                 hasUnsubmittedInput = false;

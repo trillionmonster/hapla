@@ -19,7 +19,7 @@ export function isUserQuestionRecord(raw: unknown): boolean {
     const envelope = raw.role === 'session'
         ? (raw.content?.type === 'session' ? raw.content.data : raw.content)
         : !('content' in raw) ? raw : null;
-    if (object(envelope)) return envelope.role === 'user' && !envelope.subagent && envelope.ev?.t === 'text' && typeof envelope.ev.text === 'string';
+    if (object(envelope)) return !envelope.ev?.inputEdit && envelope.role === 'user' && !envelope.subagent && envelope.ev?.t === 'text' && typeof envelope.ev.text === 'string';
     if (raw.role === 'agent' && raw.content?.type === 'output') {
         const data = raw.content.data;
         if (!object(data) || data.type !== 'user' || data.isMeta || data.isCompactSummary || data.isSynthetic || data.isSidechain || data.parent_tool_use_id || data.toolUseResult) return false;

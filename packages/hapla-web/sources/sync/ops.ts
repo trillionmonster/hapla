@@ -187,10 +187,11 @@ interface SessionKillResponse {
 export type SpawnSessionResult =
     | { type: 'success'; sessionId: string }
     | { type: 'requestToApproveDirectoryCreation'; directory: string }
-    | { type: 'error'; errorMessage: string };
+    | { type: 'error'; errorMessage: string; confirmed?: boolean };
 
 // Options for spawning a session
 export interface SpawnSessionOptions {
+    requestId?: string;
     machineId: string;
     directory: string;
     approvedNewDirectoryCreation?: boolean;
@@ -203,7 +204,7 @@ export interface ResumeSessionOptions {
     machineId: string;
     sessionId: string;
     conversationId: string;
-    metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId'>;
+    metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId' | 'launchSpecId' | 'executionConfiguration'>;
 }
 
 export async function machineStopSession(machineId: string, sessionId: string): Promise<void> {
@@ -221,11 +222,12 @@ export async function machineStopSession(machineId: string, sessionId: string): 
  */
 export async function machineSpawnNewSession(options: SpawnSessionOptions): Promise<SpawnSessionResult> {
 
-    const { machineId, directory, approvedNewDirectoryCreation = false, token, agent, environmentVariables } = options;
+    const { machineId, directory, approvedNewDirectoryCreation = false, token, agent, environmentVariables, requestId } = options;
 
     try {
         const result = await apiSocket.machineRPC<SpawnSessionResult, {
             type: 'spawn-in-directory'
+            requestId?: string
             directory: string
             approvedNewDirectoryCreation?: boolean,
             token?: string,
@@ -234,7 +236,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
         }>(
             machineId,
             'spawn-hapla-session',
-            { type: 'spawn-in-directory', directory, approvedNewDirectoryCreation, token, agent, environmentVariables }
+            { type: 'spawn-in-directory', directory, approvedNewDirectoryCreation, token, agent, environmentVariables, requestId }
         );
         return result;
     } catch (error) {

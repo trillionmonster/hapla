@@ -12,19 +12,20 @@ export function extractTurnUserText(turn: any): string {
     return values.join('\n').trim();
 }
 
-export function resolveCodexForkPoint(turns: any[], request: { userOrdinal?: number; userText?: string }): {
+export function resolveCodexForkPoint(turns: any[], request: { userOrdinal?: number; userText?: string; turnId?: string }): {
     target: any;
     previousTurnId?: string;
 } | null {
     const userTurns = turns.filter((turn) => extractTurnUserText(turn).length > 0);
-    const ordinal = Number.isInteger(request.userOrdinal) ? request.userOrdinal! : -1;
-    let target = ordinal >= 0 ? userTurns[ordinal] : null;
     const requestedText = typeof request.userText === 'string' ? request.userText.trim() : '';
+    let target = request.turnId ? turns.find(turn => turn.id === request.turnId) : null;
     if (!target && requestedText) {
-        target = [...userTurns].reverse().find((turn) => {
-            const persistedText = extractTurnUserText(turn);
-            return persistedText === requestedText || persistedText.startsWith(`${requestedText}\n`);
-        }) ?? null;
+        const matches = userTurns.filter(turn => {
+            const text = extractTurnUserText(turn);
+            return text === requestedText || text.startsWith(`${requestedText}\n`);
+        });
+        // Repeated prompts require a durable native turn identity, never a guess.
+        if (matches.length === 1) target = matches[0];
     }
     if (!target || typeof target.id !== 'string') return null;
     const targetIndex = turns.findIndex((turn) => turn.id === target.id);

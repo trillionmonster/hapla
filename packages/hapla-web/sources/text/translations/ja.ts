@@ -1,3 +1,4 @@
+import { gitWorkbenchCoreEnglish } from '../gitWorkbenchCoreLabels';
 /**
  * Japanese translations for the Hapla app
  * Values can be:
@@ -18,6 +19,7 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 export const ja: TranslationStructure = {
+    gitWorkbench: gitWorkbenchCoreEnglish,
     tabs: {
         // Tab navigation labels
         inbox: '受信トレイ',

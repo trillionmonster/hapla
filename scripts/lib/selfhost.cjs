@@ -104,6 +104,14 @@ function validateConfig(config, { template = false } = {}) {
     throw new Error('HAPLA_MASTER_SECRET 仍是示例或不足 32 字符。已有数据时请恢复原密钥，不要重新生成。');
   }
   validateUrl(config.HAPLA_WEBAPP_URL, 'HAPLA_WEBAPP_URL', true);
+  if (config.HAPLA_PREVIEW_HOST_TEMPLATE) {
+    const value = config.HAPLA_PREVIEW_HOST_TEMPLATE;
+    const hostname = value.replace('{handle}', 'a'.repeat(32));
+    if (value.split('{handle}').length !== 2 || hostname.length > 253 || hostname.split('.').length < 2
+        || !hostname.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))) {
+      throw new Error('HAPLA_PREVIEW_HOST_TEMPLATE 须为含一个 {handle} 的独立主机名，例如 {handle}.preview.example.com。');
+    }
+  }
   for (const key of ['PUBLIC_URL', 'HAPLA_ASR_URL', 'HAPLA_R2_CACHE_URL']) if (config[key]) validateUrl(config[key], key);
   if (config.HAPLA_ASR_PAGE_URL) {
     validateUrl(config.HAPLA_ASR_PAGE_URL, 'HAPLA_ASR_PAGE_URL');

@@ -4,15 +4,26 @@ import { validatePreviewTarget } from '@hapla/wire';
 export function previewTargetUrl(base: string, suffix: string): string {
     const url = new URL(validatePreviewTarget(base));
     const question = suffix.indexOf('?');
-    const path = question < 0 ? suffix : suffix.slice(0, question);
-    url.pathname = `${url.pathname.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`;
-    url.search = question < 0 ? '' : suffix.slice(question);
+    let path = (question < 0 ? suffix : suffix.slice(0, question)).replace(/^\/+/, '');
+    const basePath = url.pathname.replace(/\/$/, '');
+    // Apps hosted below /app/ often emit absolute /app/assets URLs. Do not
+    // prepend the configured base again when those resources return via Hapla.
+    if (basePath && (`/${path}` === basePath || `/${path}`.startsWith(basePath + '/'))) path = path.slice(basePath.length).replace(/^\/+/, '');
+    url.pathname = `${basePath}/${path}`;
+    if (question >= 0) {
+        if (!url.search) url.search = suffix.slice(question);
+        else {
+            const incoming = new URLSearchParams(suffix.slice(question));
+            for (const key of new Set(incoming.keys())) url.searchParams.delete(key);
+            for (const [key, value] of incoming) url.searchParams.append(key, value);
+        }
+    }
     return url.toString();
 }
 
 const HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'host']);
-export function previewRequestHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {
-    const blocked = new Set([...HOP_HEADERS, 'authorization', ...String(headers.connection ?? '').split(',').map(value => value.trim().toLowerCase())]);
+export function previewRequestHeaders(headers: Record<string, string | string[] | undefined>, allowAuthorization = false): Record<string, string | string[]> {
+    const blocked = new Set([...HOP_HEADERS, ...(allowAuthorization ? [] : ['authorization']), ...String(headers.connection ?? '').split(',').map(value => value.trim().toLowerCase())]);
     const result: Record<string, string | string[]> = {};
     for (const [key, value] of Object.entries(headers)) {
         if (value === undefined || blocked.has(key.toLowerCase()) || key.toLowerCase().startsWith('x-hapla-') || key.toLowerCase().startsWith('sec-websocket-')) continue;

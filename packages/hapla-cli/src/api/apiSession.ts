@@ -1,3 +1,5 @@
+import { registerGitHandlers } from '@/modules/git/registerGitHandlers';
+import { claimWorkspace } from '@/modules/git/workspaceLease';
 import { logger } from '@/ui/logger'
 import { EventEmitter } from 'node:events'
 import { io, Socket } from 'socket.io-client'
@@ -77,6 +79,7 @@ type V3PostSessionMessagesResponse = {
 };
 
 export class ApiSessionClient extends EventEmitter {
+    private workspaceClaim: Promise<null | (() => Promise<void>)> = Promise.resolve(null);
     private readonly startedAt = Date.now();
     private readonly token: string;
     readonly sessionId: string;
@@ -142,6 +145,8 @@ export class ApiSessionClient extends EventEmitter {
             logger: (msg, data) => logger.debug(msg, data)
         });
         registerCommonHandlers(this.rpcHandlerManager, this.metadata.path);
+        registerGitHandlers(this.rpcHandlerManager, this.metadata.path, this.metadata.conversationRootSessionId ?? this.sessionId);
+        this.workspaceClaim = claimWorkspace(this.metadata.path, this.sessionId).catch(() => null);
         registerCloudFileHandlers(this.rpcHandlerManager, this.metadata.path, this.token);
 
         //
@@ -220,7 +225,7 @@ export class ApiSessionClient extends EventEmitter {
                     }
                     const body = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.message.content.c));
                     logger.debugLargeJson('[SOCKET] [UPDATE] Received update:', body)
-                    this.routeIncomingMessage(body);
+                    this.routeIncomingMessage(body, { id: data.body.message.id, createdAt: data.body.message.createdAt });
                     this.lastSeq = messageSeq;
                 } else if (data.body.t === 'update-session') {
                     if (data.body.metadata && data.body.metadata.version > this.metadataVersion) {
@@ -298,13 +303,13 @@ export class ApiSessionClient extends EventEmitter {
         this.protocolUpload.attach(path);
     }
 
-    private routeIncomingMessage(message: unknown) {
+    private routeIncomingMessage(message: unknown, delivery?: { id: string; createdAt: number }) {
         const userResult = UserMessageSchema.safeParse(message);
         if (userResult.success) {
             if (this.pendingMessageCallback) {
-                this.pendingMessageCallback(userResult.data);
+                this.pendingMessageCallback({ ...userResult.data, delivery });
             } else {
-                this.pendingMessages.push(userResult.data);
+                this.pendingMessages.push({ ...userResult.data, delivery });
             }
             return;
         }
@@ -343,7 +348,7 @@ export class ApiSessionClient extends EventEmitter {
 
                 try {
                     const body = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(message.content.c));
-                    this.routeIncomingMessage(body);
+                    this.routeIncomingMessage(body, { id: message.id, createdAt: message.createdAt });
                 } catch (error) {
                     logger.debug('[API] Failed to decrypt fetched message', {
                         sessionId: this.sessionId,
@@ -749,6 +754,7 @@ export class ApiSessionClient extends EventEmitter {
     async close() {
         logger.debug('[API] socket.close() called');
         this.closed = true;
+        void this.workspaceClaim.then(release => release?.());
         this.protocolUpload?.stop();
         for (const receipt of this.outboxReceipts.values()) receipt.reject(new Error('Session closed before message persistence was acknowledged'));
         this.outboxReceipts.clear();

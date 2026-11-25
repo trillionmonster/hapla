@@ -197,7 +197,7 @@ export function rpcHandler(userId: string, socket: Socket, io: Server) {
             //
             // Requires 2 consecutive empty polls before declaring disconnect
             // to avoid false positives from transient lookup timeouts.
-            const ackPromise = target.timeout(RPC_CALL_TIMEOUT_MS)
+            const ackPromise = target.timeout(/:(?:git-workbench|git-worktree|git-checkpoint-create|git-checkpoint-restore)$/.test(method) ? 135_000 : RPC_CALL_TIMEOUT_MS)
                 .emitWithAck('rpc-request', { method, params });
 
             let presenceAlive = true;

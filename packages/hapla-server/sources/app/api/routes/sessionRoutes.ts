@@ -13,6 +13,16 @@ import { randomUUID } from "node:crypto";
 import { backfillQuestionIndex, emitQuestionIndex, QuestionIndexInputError, questionIndexResponse } from '@/app/session/sessionQuestionIndex';
 
 export function sessionRoutes(app: Fastify) {
+    app.get('/v1/sessions/:id/metadata', {
+        preHandler: app.authenticate,
+        schema: { params: z.object({ id: z.string().min(1) }) },
+    }, async (request, reply) => {
+        const row = await db.session.findFirst({ where: { id: request.params.id, accountId: request.userId },
+            select: { metadata: true, metadataVersion: true, conversationId: true, dataEncryptionKey: true } });
+        if (!row) return reply.code(404).send({ error: 'Session not found' });
+        return reply.send({ ...row, dataEncryptionKey: row.dataEncryptionKey ? Buffer.from(row.dataEncryptionKey).toString('base64') : null });
+    });
+
 
     app.post('/v1/sessions/:id/last-user-message', {
         preHandler: app.authenticate,

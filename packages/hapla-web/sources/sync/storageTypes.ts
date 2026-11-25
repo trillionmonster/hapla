@@ -7,7 +7,12 @@ import type { CodexPreferences } from './codexPreferences';
 // Agent states
 //
 
+const configurationValues = z.object({ permissionMode: z.enum(['default', 'dontAsk', 'acceptEdits', 'bypassPermissions', 'plan', 'read-only', 'safe-yolo', 'yolo']).optional(), model: z.string().nullable().optional(), effort: z.string().nullable().optional(), verbosity: z.enum(['low', 'medium', 'high']).nullable().optional(), serviceTier: z.string().nullable().optional(), collaborationMode: z.enum(['default', 'plan']).optional() });
 export const MetadataSchema = z.object({
+    launchSpecId: z.string().optional(),
+    executionConfiguration: z.object({ revision: z.number(), values: configurationValues }).optional(),
+    effectiveConfiguration: configurationValues.extend({ threadId: z.string().optional(), turnId: z.string().optional() }).optional(),
+    contextUsage: z.object({ usedTokens: z.number().nonnegative(), contextWindow: z.number().positive().nullable(), model: z.string().optional(), threadId: z.string().optional() }).optional(),
     models: z.array(z.object({
         code: z.string(),
         value: z.string(),
@@ -163,9 +168,10 @@ export interface Session {
     hasDraft?: boolean; // Lightweight marker retained while the draft body is unloaded.
     draft?: string | null; // Local draft message, not synced to server
     permissionMode?: string | null; // Local permission mode key, not synced to server
-    modelMode?: string | null; // Local model key, not synced to server
-    effortLevel?: string | null; // Local selection; copied into each outbound message as CLI effort metadata
+    modelMode?: string | null; // UI projection of shared execution intent, or a legacy local choice
+    effortLevel?: string | null; // Shared intent or confirmed native effort
     codexPreferences?: CodexPreferences;
+    configuration?: import('@hapla/wire').SessionConfiguration;
     // IMPORTANT: latestUsage is extracted from reducerState.latestUsage after message processing.
     // We store it directly on Session to ensure it's available immediately on load.
     // Do NOT store reducerState itself on Session - it's mutable and should only exist in SessionMessages.

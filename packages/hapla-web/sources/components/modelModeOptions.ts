@@ -55,8 +55,8 @@ export function resolveModelCatalog(
 ): Metadata['models'] {
     if (flavor === 'codex' || flavor === 'claude') {
         const current = machine?.cliCapabilities?.[flavor]?.models;
-        if (current !== undefined) return current;
-        if (flavor === 'codex' && machine?.codexModels !== undefined) return machine.codexModels;
+        if (current?.length) return current;
+        if (flavor === 'codex' && machine?.codexModels?.length) return machine.codexModels;
     }
     return session?.models;
 }

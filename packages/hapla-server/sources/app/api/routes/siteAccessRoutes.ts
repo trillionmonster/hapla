@@ -64,6 +64,9 @@ export function enableSiteAccess<Logger extends FastifyBaseLogger>(app: AccessSe
     app.addHook('onRequest', async (request, reply) => {
         if (!access) return;
         const path = request.url.split('?')[0];
+        // Preview routes enforce owner/account/key access themselves, including
+        // on isolated hosts. A public share must not need the main site password.
+        if (/^\/preview\/[a-f0-9]{32}(?:\/|$)/.test(path)) return;
         if (path === '/health' || path === '/access/login' || path === '/access/check' || path === '/v1/updates' || path === '/v1/updates/') return;
         if (access.hasSession(request.headers.cookie)) return;
         const authorization = request.headers.authorization;

@@ -5,7 +5,7 @@ import { Text } from './StyledText';
 import { sync } from '@/sync/sync';
 import { useConversationSessionIds, useSession } from '@/sync/storage';
 import { LATEST_HISTORY_CURSOR, type ConversationHistoryCursor } from '@/sync/sessionHistory';
-import { createReducer, reducer } from '@/sync/reducer/reducer';
+import { createReducer, reducer, type ReducerState } from '@/sync/reducer/reducer';
 import { filterMessagesForActiveBranch } from '@/utils/sessionBranches';
 
 /** Read all question pages independently of the bounded live message window. */
@@ -20,6 +20,7 @@ export function InputHistoryPanel(props: { sessionId: string; recent: readonly s
     const [query, setQuery] = React.useState('');
     const generation = React.useRef(0);
     const pending = React.useRef(false);
+    const history = React.useRef(new Map<string, ReducerState>());
     const load = React.useCallback(async (start?: ConversationHistoryCursor) => {
         if (pending.current || !ids.length) return;
         const version = generation.current;
@@ -32,7 +33,9 @@ export function InputHistoryPanel(props: { sessionId: string; recent: readonly s
             while (next && added.length < 25 && version === generation.current) {
                 const page = await sync.readConversationHistoryPage(ids, next);
                 const userRecords = page.messages.filter(message => message.role === 'user');
-                const decoded = reducer(createReducer(), userRecords).messages;
+                let state = history.current.get(page.sessionId);
+                if (!state) { state = createReducer(); history.current.set(page.sessionId, state); }
+                const decoded = reducer(state, userRecords).messages;
                 const messages = filterMessagesForActiveBranch(decoded, session?.metadata ?? null);
                 for (const message of messages) if (message.kind === 'user-text' && message.text.trim()) added.push({ id: `${page.sessionId}:${message.id}`, text: message.displayText ?? message.text, at: message.createdAt });
                 next = page.next;
@@ -44,7 +47,7 @@ export function InputHistoryPanel(props: { sessionId: string; recent: readonly s
         finally { if (version === generation.current) { pending.current = false; setBusy(false); } }
     }, [ids, session?.metadata]);
     React.useEffect(() => {
-        generation.current++; pending.current = false; setEntries([]); setCursor(undefined);
+        generation.current++; pending.current = false; history.current.clear(); setEntries([]); setCursor(undefined);
         void load();
         return () => { generation.current++; pending.current = false; };
     }, [props.sessionId, session?.metadata?.activeCodexBranchId]);

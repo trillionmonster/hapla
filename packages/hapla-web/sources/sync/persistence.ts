@@ -261,3 +261,7 @@ export function retrieveTempText(id: string): string | null {
 export function clearPersistence() {
     mmkv.clearAll();
 }
+
+/** Only encrypted message bodies; namespace includes server and account identity. */
+export function loadEncryptedOutbox(namespace: string): string | undefined { return mmkv.getString(`outbox:${namespace}`); }
+export function saveEncryptedOutbox(namespace: string, value: string): void { mmkv.set(`outbox:${namespace}`, value); }

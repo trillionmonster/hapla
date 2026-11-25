@@ -3,7 +3,7 @@ import React from 'react';
 // @ts-expect-error installed renderer lacks declarations
 import { act, create } from 'react-test-renderer';
 
-const persisted = vi.hoisted(() => ({ drafts: {} as Record<string, string> }));
+const persisted = vi.hoisted(() => ({ drafts: {} as Record<string, string>, permission: {} as Record<string, string>, model: {} as Record<string, string>, effort: {} as Record<string, string> }));
 
 vi.mock('./sync', () => ({ sync: {} }));
 vi.mock('./projectManager', () => ({ projectManager: { updateSessions: vi.fn() } }));
@@ -12,12 +12,12 @@ vi.mock('@/utils/sessionUtils', () => ({ getSessionName: () => 'Session', getSes
 vi.mock('./persistence', () => ({
     loadSessionCodexPreferences: () => ({}), saveSessionCodexPreferences: vi.fn(),
     loadSettings: () => ({ settings: {}, version: 0 }), loadLocalSettings: () => ({}), loadProfile: () => ({}),
-    loadSessionDrafts: () => ({ ...persisted.drafts }), loadSessionPermissionModes: () => ({}), loadSessionModelModes: () => ({}), loadSessionEffortLevels: () => ({}),
+    loadSessionDrafts: () => ({ ...persisted.drafts }), loadSessionPermissionModes: () => ({ ...persisted.permission }), loadSessionModelModes: () => ({ ...persisted.model }), loadSessionEffortLevels: () => ({ ...persisted.effort }),
     saveSettings: vi.fn(), saveLocalSettings: vi.fn(), saveProfile: vi.fn(), saveSessionDrafts: (drafts: Record<string, string>) => { persisted.drafts = { ...drafts }; },
     saveSessionPermissionModes: vi.fn(), saveSessionModelModes: vi.fn(), saveSessionEffortLevels: vi.fn(),
 }));
 
-import { storage, useConversationMessages, useConversationSessionIds } from './storage';
+import { storage, messageSignature, useConversationMessages, useConversationSessionIds } from './storage';
 import type { NormalizedMessage } from './typesRaw';
 import type { Session } from './storageTypes';
 import { estimateRetainedBytes, MAX_SESSION_CACHE_BYTES, sessionResources } from './sessionResources';
@@ -206,4 +206,30 @@ it('preserves sleeping drafts persistently without pinning them in the session l
     expect(persisted.drafts).toEqual({ one: 'unsent draft one', two: 'unsent draft two' });
     storage.getState().touchSessionResources('one');
     expect(storage.getState().sessions.one.draft).toBe('unsent draft one');
+});
+
+it('restores saved choices for historical rows arriving after initial synchronization and keeps explicit default', () => {
+    persisted.permission = { later: 'default' }; persisted.model = { later: 'custom-model' }; persisted.effort = { later: 'high' };
+    storage.getState().applySessions([session('first')]);
+    storage.getState().applySessions([session('later')]);
+    expect(storage.getState().sessions.later).toMatchObject({ permissionMode: 'default', modelMode: 'custom-model', effortLevel: 'high' });
+    storage.getState().updateSessionPermissionMode('later', 'default');
+    storage.getState().applySessions([{ ...session('later'), metadataVersion: 2 }]);
+    expect(storage.getState().sessions.later.permissionMode).toBe('default');
+});
+it('reprojects a later canonical configuration onto every replacement runtime without mutating prior state', () => {
+    const child = { ...session('child'), conversationId: 'c', metadata: { conversationRootSessionId: 'root' } } as Session;
+    const owner = { ...session('root'), conversationId: 'c', metadata: { executionConfiguration: { revision: 1, values: { effort: 'high' } } } } as Session;
+    storage.getState().applySessions([child, owner]);
+    const before = storage.getState().sessions.child;
+    storage.getState().applySessions([{ ...owner, metadataVersion: 2, metadata: { executionConfiguration: { revision: 2, values: { effort: 'medium', permissionMode: 'read-only' } } } } as Session]);
+    expect(before.effortLevel).toBe('high');
+    expect(storage.getState().sessions.child).toMatchObject({ effortLevel: 'medium', permissionMode: 'read-only' });
+});
+
+it('merges a recovered submission across runtime rows by its durable input identity',()=>{
+    const before={kind:'user-text',id:'old-row',createdAt:1,text:'question',meta:{codexInputId:'same'}} as any;
+    const after={...before,id:'new-row',createdAt:2};
+    expect(messageSignature(before)).toBe(messageSignature(after));
+    expect(messageSignature({...after,meta:{codexInputId:'different'}})).not.toBe(messageSignature(before));
 });

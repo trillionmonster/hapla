@@ -27,6 +27,7 @@ export type ToolCall = {
 
 // Flattened message types - each message represents a single block
 export type UserTextMessage = {
+    sourceMessageId?: string;
     kind: 'user-text';
     id: string;
     localId: string | null;

@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { defaultPermissionModeForSession } from './defaultPermissionMode';
 
 describe('defaultPermissionModeForSession', () => {
-    it('uses native full access for Codex sessions', () => {
-        expect(defaultPermissionModeForSession({ flavor: 'codex', sandbox: null })).toBe('yolo');
+    it('does not expand Codex permissions on a fresh device', () => {
+        expect(defaultPermissionModeForSession({ flavor: 'codex', sandbox: null })).toBe('default');
     });
 
-    it('keeps managed sandbox sessions inside the external sandbox', () => {
+    it('does not bypass approval merely because an outer sandbox is enabled', () => {
         expect(defaultPermissionModeForSession({
             flavor: 'codex',
             sandbox: { enabled: true },
-        })).toBe('bypassPermissions');
+        })).toBe('default');
     });
 
     it('keeps the conservative default for Claude sessions', () => {

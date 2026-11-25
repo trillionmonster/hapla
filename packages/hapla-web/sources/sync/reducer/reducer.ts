@@ -146,6 +146,7 @@ type StoredPermission = {
 };
 
 export type ReducerState = {
+    inputEdits?: Map<string, { text: string; revision: number }>;
     toolIdToMessageId: Map<string, string>; // toolId/permissionId -> messageId (since they're the same now)
     sidechainToolIdToMessageId: Map<string, string>; // toolId -> sidechain messageId (for dual tracking)
     permissions: Map<string, StoredPermission>; // Store permission details by ID for quick lookup
@@ -699,6 +700,22 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
     for (let msg of nonSidechainMessages) {
         if (msg.role === 'user') {
+            if (msg.meta?.inputEdit) {
+                const edit = msg.meta.inputEdit;
+                state.inputEdits ??= new Map();
+                if ((state.inputEdits.get(edit.messageId)?.revision ?? 0) < edit.revision) {
+                    const value = { text: getNormalizedUserText(msg), revision: edit.revision };
+                    state.inputEdits.set(edit.messageId, value);
+                    const targetId = state.messageIds.get(edit.messageId) ?? state.localIds.get(edit.messageId);
+                    const target = targetId ? state.messages.get(targetId) : undefined;
+                    if (target && target.role === 'user') {
+                        target.text = value.text;
+                        target.meta = { ...target.meta, displayText: value.text };
+                        changed.add(target.id);
+                    }
+                }
+                continue;
+            }
             // Check if we've seen this localId before
             if (msg.localId && state.localIds.has(msg.localId)) {
                 const existingMessageId = state.localIds.get(msg.localId);
@@ -707,8 +724,9 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                     const existingMessage = state.messages.get(existingMessageId);
                     if (existingMessage && existingMessage.role === 'user') {
                         existingMessage.realID = msg.id;
-                        existingMessage.text = getNormalizedUserText(msg);
-                        existingMessage.meta = msg.meta;
+                        const edit = state.inputEdits?.get(msg.id) ?? state.inputEdits?.get(msg.localId);
+                        existingMessage.text = edit?.text ?? getNormalizedUserText(msg);
+                        existingMessage.meta = edit ? { ...msg.meta, displayText: edit.text } : msg.meta;
                         existingMessage.images = getNormalizedUserImages(msg);
                         changed.add(existingMessageId);
                         state.messageIds.set(msg.id, existingMessageId);
@@ -721,17 +739,18 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 continue;
             }
 
-            // Create a new message
+            // Revisions may arrive before their original message during pagination.
+            const inputEdit = state.inputEdits?.get(msg.id) ?? (msg.localId ? state.inputEdits?.get(msg.localId) : undefined);
             let mid = allocateId();
             state.messages.set(mid, {
                 id: mid,
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
-                text: getNormalizedUserText(msg),
+                text: inputEdit?.text ?? getNormalizedUserText(msg),
                 tool: null,
                 event: null,
-                meta: msg.meta,
+                meta: inputEdit ? { ...msg.meta, displayText: inputEdit.text } : msg.meta,
                 images: getNormalizedUserImages(msg),
             });
 
@@ -1317,6 +1336,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             localId: null,
             createdAt: reducerMsg.createdAt,
             kind: 'user-text',
+            sourceMessageId: reducerMsg.realID ?? undefined,
             text: reducerMsg.text,
             ...(reducerMsg.meta?.displayText && { displayText: reducerMsg.meta.displayText }),
             meta: reducerMsg.meta,

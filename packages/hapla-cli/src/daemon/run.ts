@@ -1,3 +1,4 @@
+import { saveRuntimeLaunchSpec } from '@/resume/runtimeLaunchSpec';
 import fs from 'fs/promises';
 import os from 'os';
 import * as tmp from 'tmp';
@@ -238,7 +239,7 @@ export async function startDaemon(): Promise<void> {
 
     // Spawn a new session (sessionId reserved for future --resume functionality)
     const spawnSession = async (options: SpawnSessionOptions): Promise<SpawnSessionResult> => {
-      logger.debugLargeJson('[DAEMON RUN] Spawning session', options);
+      logger.debug('[DAEMON RUN] Spawning session', { agent: options.agent, directory: options.directory, environmentKeys: Object.keys(options.environmentVariables ?? {}) });
 
       const { sessionId, machineId, approvedNewDirectoryCreation = true } = options;
       const prepared = await prepareSessionDirectory(options.directory, approvedNewDirectoryCreation);
@@ -311,6 +312,9 @@ export async function startDaemon(): Promise<void> {
             errorMessage
           };
         }
+
+        const launchSpecId = saveRuntimeLaunchSpec({ agent: options.agent === 'codex' ? 'codex' : 'claude', args: [], environment: extraEnv });
+        extraEnv = { ...extraEnv, HAPLA_LAUNCH_SPEC_ID: launchSpecId };
 
         // Check if tmux is available and should be used
         const tmuxAvailable = await isTmuxAvailable();
@@ -556,7 +560,7 @@ export async function startDaemon(): Promise<void> {
     }: {
       sessionId: string;
       conversationId: string;
-      metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId'>;
+      metadata: Pick<Metadata, 'path' | 'flavor' | 'codexThreadId' | 'claudeSessionId' | 'conversationRootSessionId' | 'codexBranches' | 'activeCodexBranchId' | 'launchSpecId' | 'executionConfiguration'>;
     }): Promise<SpawnSessionResult> => {
       const identity = resumeIdentity(haplaSessionId, metadata);
       const activeSession = Array.from(pidToTrackedSession.values()).find((tracked) => {
@@ -613,20 +617,8 @@ export async function startDaemon(): Promise<void> {
             cwd: launch.cwd,
             env: {
               ...process.env,
+              ...launch.env,
               HAPLA_CONVERSATION_ID: conversationId,
-              HAPLA_CONTINUED_FROM_SESSION_ID: haplaSessionId,
-              HAPLA_CONVERSATION_ROOT_SESSION_ID: metadata.conversationRootSessionId || haplaSessionId,
-              ...(metadata.flavor === 'codex' && metadata.codexThreadId
-                ? { HAPLA_RESUME_CODEX_THREAD_ID: metadata.codexThreadId }
-                : {}),
-              ...(metadata.flavor === 'codex' && metadata.codexBranches?.length
-                ? {
-                    HAPLA_CODEX_BRANCH_STATE: JSON.stringify({
-                      codexBranches: metadata.codexBranches,
-                      activeCodexBranchId: metadata.activeCodexBranchId,
-                    }),
-                  }
-                : {}),
             },
           });
         } catch (error) {

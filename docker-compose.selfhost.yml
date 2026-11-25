@@ -13,6 +13,7 @@ services:
       HAPLA_WEBAPP_URL: ${HAPLA_WEBAPP_URL:-http://localhost:12345}
       HAPLA_ACCESS_PASSWORD_HASH: ${HAPLA_ACCESS_PASSWORD_HASH:-}
       HAPLA_ASR_URL: ${HAPLA_ASR_URL:-}
+      HAPLA_PREVIEW_HOST_TEMPLATE: ${HAPLA_PREVIEW_HOST_TEMPLATE:-}
     volumes:
       - hapla-data:/data
     expose:

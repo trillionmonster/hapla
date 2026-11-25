@@ -117,7 +117,13 @@ permissions.
 | Conversation | Prompts, replies, attachments, and results | The same conversation with detailed tool activity |
 | Agent interaction | Questions, approval requests, and interactive Skills | The same interactions with tool inputs and results visible |
 | Workspace | Web and HTML previews | Previews, file browser, and a persistent terminal on the worker |
+| Code review | Read the agent's summary | Changes, Git actions, and Codex checkpoints |
 | When to use it | Give direction and review progress, including on a phone | Inspect commands, browse files, and diagnose results |
+
+Model, thinking depth, permissions, and follow-up behavior belong to the session
+in both views. Paired browsers synchronize these settings, so continuing on a
+phone keeps the session's choices. Controls distinguish the next turn's settings
+from those the running agent actually uses.
 
 ![Coder mode shows the Bash tool call, file browser and terminal controls for the same example session](docs/assets/coder-mode.webp)
 
@@ -160,6 +166,34 @@ pairs a Codex Skill with an MCP app for choosing image references and sends the
 confirmed selection to the next agent turn.
 [Runnable Character composer example](examples/interactive-skills/character-composer/README.md) · [Interactive Skills](docs/interactive-skills.md)
 
+### Review code changes
+
+Open **Coder → Changes** to review working, staged, branch, commit, and turn diffs.
+Stage files, commit, push a branch, and inspect draft GitHub pull requests and checks.
+Codex checkpoints can restore files and conversation together inside an exclusive
+worktree. The workbench supports light and dark themes, a compact phone layout,
+and large diffs with access to the complete raw patch.
+[Coding workbench guide](docs/coding-workbench.md)
+
+![Coder Changes showing the file list, a complete code diff, Git actions, and Codex checkpoints](docs/assets/coding-workbench.png)
+
+*The development acceptance workspace uses a synthetic repository and a local agent fixture.*
+
+### Follow up while Codex works
+
+Choose **Queue** for a later turn, **Steer** to guide the running turn, or **BTW**
+for a read-only side question. Edit queued text from the input history. Failed
+message submissions keep their draft and can retry with the same message ID,
+including after reloading the browser. Branch checks prevent a queued message
+from running on a different branch. [Follow-up and recovery guide](docs/web-interaction-features.md)
+
+### Manage development previews
+
+Use the preview manager to reopen registered local applications and choose
+private, signed-in-site, or public-key access. Shared applications use a separate
+preview origin configured by the deployment administrator; access can be revoked
+or its key reset. [Preview configuration](docs/configuration.md)
+
 ### Set the default model
 
 Open **Settings → New session defaults**. Pick **Codex** or **Claude Code**, then
@@ -184,6 +218,13 @@ comes from a paired machine, and you can override the defaults for a session.
   the built CLI. Restart the daemon when convenient. For a Docker worker,
   rerun `worker-up` for that worker after pulling the changes.
   [CLI commands](packages/hapla-cli/README.md)
+
+For an existing deployment, update Web, relay, and workers together to use the
+shared session settings and recovery protocol. Preserve the original server key
+and each worker's login and workspace, and take a database backup with the relay
+stopped. A worker container restart ends its agent processes; restore previously
+online conversations by their saved session IDs when the worker is ready.
+[Upgrade and isolation guidance](docs/environment-isolation.md#更新停止与恢复)
 
 ### Continue a session
 

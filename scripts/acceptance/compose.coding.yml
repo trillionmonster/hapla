@@ -1,0 +1,67 @@
+# Development and CI only. Always select --project-name dev-hapla explicitly.
+services:
+  coding-cli:
+    image: hapla-coding-dev:dev-hapla
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile.dev
+      args:
+        CODEX_VERSION: ${CODEX_VERSION:?Set the version from codexProtocolSnapshot.json}
+    working_dir: /repo
+    command: [sleep, infinity]
+    volumes:
+      - ../..:/repo
+      - coding-deps:/repo/node_modules
+      - coding-home:/home/node
+      - coding-workspace:/workspace
+    environment:
+      HOME: /home/node
+      HAPLA_HOME_DIR: /home/node/.hapla
+      CODEX_HOME: /home/node/.codex
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+      HAPLA_SERVER_URL: http://server:3005
+      HAPLA_WEBAPP_URL: http://127.0.0.1:${CODING_WEB_PORT:-23345}
+      HAPLA_WORKSPACE_ROOT: /workspace
+      HAPLA_ACCEPTANCE_STACK: dev-hapla
+    networks: [coding]
+  coding-server:
+    image: hapla-coding-dev:dev-hapla
+    working_dir: /repo/packages/hapla-server
+    command: [../../node_modules/.bin/tsx, sources/standalone.ts, serve]
+    volumes:
+      - ../..:/repo:ro
+      - coding-deps:/repo/node_modules
+      - coding-data:/data
+    environment:
+      HAPLA_MASTER_SECRET: ${HAPLA_MASTER_SECRET:?Set a private development master secret}
+      PGLITE_DIR: /data/pglite
+      DATA_DIR: /data
+      PORT: 3005
+      HAPLA_WEBAPP_URL: http://127.0.0.1:${CODING_WEB_PORT:-23345}
+    ports: ["127.0.0.1:${CODING_SERVER_PORT:-24005}:3005"]
+    networks:
+      coding:
+        aliases: [server]
+  coding-web:
+    image: hapla-coding-dev:dev-hapla
+    working_dir: /repo
+    command: [node, scripts/serve-web.cjs]
+    volumes:
+      - ../..:/repo:ro
+      - coding-deps:/repo/node_modules
+    environment:
+      HAPLA_WEB_HOST: 0.0.0.0
+      HAPLA_WEB_PORT: 8080
+      HAPLA_SERVER_URL: http://server:3005
+      HAPLA_API_URL: http://server:3005
+    ports: ["127.0.0.1:${CODING_WEB_PORT:-23345}:8080"]
+    networks:
+      coding:
+        aliases: [web]
+networks:
+  coding: {}
+volumes:
+  coding-deps: {}
+  coding-home: {}
+  coding-workspace: {}
+  coding-data: {}

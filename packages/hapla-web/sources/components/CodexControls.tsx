@@ -3,7 +3,7 @@ import type { CodexPreferences } from '@/sync/codexPreferences';
 import type { EffortLevel } from './modelModeOptions';
 export type CodexControlsProps = {
     preferences: CodexPreferences;
-    onChange: (value: CodexPreferences) => void;
+    onChange: (value: Partial<CodexPreferences>) => void;
     effort?: EffortLevel | null;
     efforts: EffortLevel[];
     onEffortChange?: (value: EffortLevel) => void;

@@ -1,3 +1,5 @@
+import { prepareRuntimeLaunch } from '@/resume/runtimeLaunchSpec';
+import { sessionConfigurationSchema } from '@hapla/wire/sessionConfiguration';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 
@@ -100,7 +102,11 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         metadata: initialMachineMetadata
     });
 
+    const launchSpecId = prepareRuntimeLaunch('claude', options.claudeArgs ?? [], options.noSandbox);
+    const handoffConfiguration = process.env.HAPLA_SESSION_CONFIGURATION ? sessionConfigurationSchema.safeParse(JSON.parse(process.env.HAPLA_SESSION_CONFIGURATION)) : null;
     let metadata: Metadata = {
+        launchSpecId,
+        ...(handoffConfiguration?.success ? { executionConfiguration: handoffConfiguration.data } : {}),
         path: workingDirectory,
         host: os.hostname(),
         version: packageJson.version,

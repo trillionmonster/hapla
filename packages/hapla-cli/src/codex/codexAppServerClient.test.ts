@@ -169,13 +169,26 @@ describe('CodexAppServerClient sandbox integration', () => {
         return { client, proc, requests, events, notify, complete };
     }
 
+    it('resets an explicit model to native config instead of retaining the selected model', async () => {
+        const { client, requests, complete } = await runningClient((msg, stdout) => {
+            if (msg.method === 'config/read') queueMicrotask(() => pushJsonLine(stdout, { id: msg.id, result: { config: { model: 'native-default', model_reasoning_effort: 'low' } } }));
+        });
+        const selected = client.sendTurnAndWait('selected', { model: 'explicit-model', effort: 'high' });
+        await waitFor(() => client.turnId === 'turn-1'); complete('turn-1'); await selected;
+        const reset = client.sendTurnAndWait('reset', { model: null, effort: null });
+        await waitFor(() => client.turnId === 'turn-2');
+        expect(requests.filter(row => row.method === 'turn/start').at(-1)?.params).toMatchObject({ model: 'native-default', effort: 'low' });
+        expect(client.effectiveConfiguration).toMatchObject({ model: 'native-default', effort: 'low' });
+        complete('turn-2'); await reset; await client.disconnect();
+    });
+
     it('restores a terminal SSE server error once on the latest executable without replaying the failed input', async () => {
         const mcpServers = { hapla: { command: 'node', args: ['bridge.mjs'] } };
         const { client, proc, requests, events, notify } = await runningClient(undefined, undefined, {
             model: 'initial-model', cwd: '/work', approvalPolicy: 'on-request', sandbox: 'read-only', mcpServers,
         });
         const { CodexTurnFailure } = await import('./codexTurnFailure');
-        const turn = client.sendTurnContentAndWait([{ type: 'text', text: 'original request' }, { type: 'image', url: 'data:image/png;base64,fixture' }], { model: 'current-model', turnTimeoutMs: 80 });
+        const turn = client.sendTurnContentAndWait([{ type: 'text', text: 'original request' }, { type: 'image', url: 'data:image/png;base64,fixture' }], { model: 'current-model', turnTimeoutMs: 2000 });
         const failureResult = turn.catch(error => error);
         await waitFor(() => client.turnId === 'turn-1');
         const error = { codexErrorInfo: 'other', message: 'stream disconnected before completion: An error occurred while processing your request. Request ID req-original' };
@@ -1963,7 +1976,8 @@ describe('CodexAppServerClient sandbox integration', () => {
         const { CodexAppServerClient } = await import('./codexAppServerClient');
         const client = new CodexAppServerClient();
         await client.connect();
-        await client.startThread({ cwd: '/workspace' });
+        const mcpServers = { hapla: { command: 'node', args: ['bridge.mjs'] } };
+        await client.startThread({ cwd: '/workspace', mcpServers, approvalPolicy: 'never', sandbox: 'workspace-write' });
 
         await expect(client.readThreadTurns()).resolves.toEqual([{ id: 'turn-1' }]);
         await expect(client.forkThread({ lastTurnId: 'turn-1' })).resolves.toEqual({
@@ -1972,7 +1986,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(client.threadId).toBe('thread-child');
         expect(requests).toContainEqual(expect.objectContaining({
             method: 'thread/fork',
-            params: expect.objectContaining({ threadId: 'thread-root', lastTurnId: 'turn-1' }),
+            params: expect.objectContaining({ threadId: 'thread-root', lastTurnId: 'turn-1', config: { mcp_servers: mcpServers }, approvalPolicy: 'never', sandbox: 'workspace-write' }),
         }));
         await expect(client.startSiblingThread({ cwd: '/workspace' })).resolves.toEqual({
             threadId: 'thread-empty-child', model: 'gpt-test', forkedFromId: 'thread-child',

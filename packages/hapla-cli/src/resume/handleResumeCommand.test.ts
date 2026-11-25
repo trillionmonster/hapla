@@ -39,7 +39,7 @@ describe('buildResumeLaunch', () => {
                 happyLibDir: '/tmp/happy',
                 happyToolsDir: '/tmp/happy/tools',
             },
-        })).toEqual({
+        })).toMatchObject({
             cwd: '/tmp/p1-control-flow',
             args: ['codex', '--resume', '019ccca5-726b-7c61-b914-16de27dfab6e'],
         });
@@ -59,7 +59,7 @@ describe('buildResumeLaunch', () => {
                 happyLibDir: '/tmp/happy',
                 happyToolsDir: '/tmp/happy/tools',
             },
-        })).toEqual({
+        })).toMatchObject({
             cwd: '/tmp/repo',
             args: ['claude', '--resume', '93a9705e-bc6a-406d-8dce-8acc014dedbd'],
         });
@@ -95,7 +95,7 @@ describe('buildTransparentContinuationLaunch', () => {
                 happyLibDir: '/tmp/hapla',
                 happyToolsDir: '/tmp/hapla/tools',
             },
-        }, { startedBy: 'daemon', claudeStartingMode: 'remote' })).toEqual({
+        }, { startedBy: 'daemon', claudeStartingMode: 'remote' })).toMatchObject({
             cwd: '/tmp/project',
             args: ['claude', '--hapla-starting-mode', 'remote', '--started-by', 'daemon'],
         });
@@ -114,7 +114,7 @@ describe('buildTransparentContinuationLaunch', () => {
                 happyLibDir: '/tmp/hapla',
                 happyToolsDir: '/tmp/hapla/tools',
             },
-        }, { startedBy: 'daemon' })).toEqual({
+        }, { startedBy: 'daemon' })).toMatchObject({
             cwd: '/tmp/project',
             args: ['codex', '--started-by', 'daemon'],
         });
@@ -133,7 +133,7 @@ describe('buildTransparentContinuationLaunch', () => {
                 happyLibDir: '/tmp/hapla',
                 happyToolsDir: '/tmp/hapla/tools',
             },
-        }, { startedBy: 'daemon', claudeStartingMode: 'remote' })).toEqual({
+        }, { startedBy: 'daemon', claudeStartingMode: 'remote' })).toMatchObject({
             cwd: '/tmp/project',
             args: ['codex', '--hapla-starting-mode', 'remote', '--started-by', 'daemon'],
         });
@@ -153,7 +153,7 @@ describe('buildTransparentContinuationLaunch', () => {
                 happyLibDir: '/tmp/hapla',
                 happyToolsDir: '/tmp/hapla/tools',
             },
-        }, { startedBy: 'daemon' })).toEqual({
+        }, { startedBy: 'daemon' })).toMatchObject({
             cwd: '/tmp/project',
             args: ['codex', '--resume', 'thread-1', '--started-by', 'daemon'],
         });

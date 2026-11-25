@@ -1,3 +1,5 @@
+import { configurationOwner } from './sessionConfiguration';
+import type { SessionConfigurationValues } from '@hapla/wire';
 import Constants from 'expo-constants';
 import { apiSocket, getHaplaClientId } from '@/sync/apiSocket';
 import { AuthCredentials } from '@/auth/tokenStorage';
@@ -17,7 +19,7 @@ import { randomId } from '@/utils/randomId';
 import { NormalizedMessage, normalizeRawMessage, RawRecord } from './typesRaw';
 import { applySettings, Settings, settingsDefaults, settingsParse, SUPPORTED_SCHEMA_VERSION } from './settings';
 import { Profile, profileParse } from './profile';
-import { loadPendingSettings, savePendingSettings } from './persistence';
+import { loadPendingSettings, savePendingSettings, loadEncryptedOutbox, saveEncryptedOutbox } from './persistence';
 import { parseToken } from '@/utils/parseToken';
 import { getServerUrl } from './serverConfig';
 import { config } from '@/config';
@@ -34,13 +36,12 @@ import { ArtifactEncryption } from './encryption/artifactEncryption';
 import { uploadChatImages } from './apiUploads';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
-import { resolveMessageModeMeta, resolveMessageCodexPreferenceMeta } from './messageMeta';
 import { getConversationRuntimeIds, type ConversationSessionRef } from './conversationSessions';
 import { SessionRequestEpochs } from './sessionRequestEpoch';
 import { sessionResources } from './sessionResources';
 import { SessionStreamBatcher } from './sessionStreamBatcher';
 import { advanceConversationHistoryCursor, historyPagePath, initialHistorySession, loadConversationHistoryWindow, LATEST_HISTORY_CURSOR, olderHistorySession, type ConversationHistoryCursor } from './sessionHistory';
-import { SessionQuestionBackfill } from './sessionQuestionBackfill';
+import type { SessionQuestionBackfill } from './sessionQuestionBackfill';
 import { forEachSessionIndexPage } from './sessionIndexPages';
 
 type V3GetSessionMessagesResponse = {
@@ -59,10 +60,7 @@ type V3PostSessionMessagesResponse = {
     }>;
 };
 
-type OutboxMessage = {
-    localId: string;
-    content: string;
-};
+type OutboxMessage = import('./messageOutbox').OutboxMessage;
 
 type SendMessageOptions = {
     codexFollowupMode?: import('@hapla/wire').CodexFollowupMode;
@@ -87,7 +85,56 @@ class Sync {
     private sendAbortControllers = new Map<string, AbortController>();
     private sessionLastSeq = new Map<string, number>();
     private sessionOldestSeq = new Map<string, number>();
+    private outboxFlushes = new Map<string, Promise<void>>();
     private pendingOutbox = new Map<string, OutboxMessage[]>();
+    private configurationPatches = new Map<string, SessionConfigurationValues>();
+    private configurationWrites = new Map<string, Promise<void>>();
+
+    hasPendingSessionConfiguration = (id: string): boolean => {
+        const state = storage.getState(); const session = state.sessions[id];
+        const owner = session ? configurationOwner(session, state.sessions) : id;
+        return this.configurationPatches.has(owner) || this.configurationWrites.has(owner);
+    };
+
+    queueSessionConfiguration = (id: string, patch: SessionConfigurationValues): void => {
+        const state = storage.getState(); const source = state.sessions[id];
+        if (!source) return;
+        const owner = configurationOwner(source, state.sessions);
+        this.configurationPatches.set(owner, { ...this.configurationPatches.get(owner), ...patch });
+        // Defer until the optimistic store update that scheduled this write has committed.
+        if (!this.configurationWrites.has(owner)) {
+            const operation = Promise.resolve().then(() => this.writeSessionConfiguration(id, owner));
+            this.configurationWrites.set(owner, operation);
+            void operation.catch(async error => {
+                const { Modal } = await import('@/modal');
+                Modal.alert('设置尚未同步', error instanceof Error ? error.message : String(error));
+            });
+        }
+    };
+
+    private async writeSessionConfiguration(id: string, owner: string): Promise<void> {
+        try {
+            const { writeQueuedSessionConfiguration } = await import('./sessionConfigurationSync');
+            await writeQueuedSessionConfiguration(owner, id, this.configurationPatches, () => this.encryption, session => this.applySessions([session]));
+        } finally {
+            this.configurationWrites.delete(owner);
+            storage.getState().applySessions(Object.values(storage.getState().sessions));
+        }
+    }
+
+    flushSessionConfiguration = async (id: string): Promise<void> => {
+        const state = storage.getState(); const session = state.sessions[id];
+        if (!session) throw new Error('会话不存在');
+        const owner = configurationOwner(session, state.sessions);
+        const current = this.configurationWrites.get(owner);
+        if (current) await current;
+        else if (this.configurationPatches.has(owner)) {
+            const operation = Promise.resolve().then(() => this.writeSessionConfiguration(id, owner));
+            this.configurationWrites.set(owner, operation);
+            await operation;
+        }
+    };
+
     private sessionMessageQueue = new Map<string, NormalizedMessage[]>();
     private sessionQueueProcessing = new Set<string>();
     private sessionMessageLocks = new Map<string, AsyncLock>();
@@ -111,7 +158,11 @@ class Sync {
     private backgroundSendTimeout: ReturnType<typeof setTimeout> | null = null;
     private backgroundSendNotificationId: string | null = null;
     private backgroundSendStartedAt: number | null = null;
-    private questionBackfill = new SessionQuestionBackfill({
+    private questionBackfill?: SessionQuestionBackfill;
+    private async initializeQuestionBackfill(): Promise<void> {
+        if (this.questionBackfill) return;
+        const { SessionQuestionBackfill } = await import('./sessionQuestionBackfill');
+        this.questionBackfill = new SessionQuestionBackfill({
         fetchPage: async (sessionId, before, limit, signal) => {
             const response = await apiSocket.request(`/v3/sessions/${encodeURIComponent(sessionId)}/messages?before_seq=${before}&limit=${limit}`, { signal });
             if (!response.ok) throw new Error(`Question history request failed: ${response.status}`);
@@ -133,7 +184,8 @@ class Sync {
             if (session) this.applySessions([{ ...session, ...index }]);
         },
         isCurrent: task => Boolean(storage.getState().sessions[task.id] && this.encryption?.getSessionEncryption(task.id)),
-    });
+        });
+    }
     // Generic locking mechanism
     private recalculationLockCount = 0;
     private lastRecalculationTime = 0;
@@ -189,7 +241,11 @@ class Sync {
 
     }
 
-    stopQuestionBackfill(): void { this.questionBackfill.stop(); }
+    stopQuestionBackfill(): void {
+        this.questionBackfill?.stop();
+        for (const controller of this.sendAbortControllers.values()) controller.abort();
+        this.configurationPatches.clear();
+    }
 
     async restore(credentials: AuthCredentials, encryption: Encryption) {
         // NOTE: No awaiting anything here, we're restoring from a disk (ie app restarted)
@@ -200,7 +256,14 @@ class Sync {
         await this.#init();
     }
 
+    private persistOutbox() {
+        saveEncryptedOutbox(`${getServerUrl()}#${this.anonID}`, JSON.stringify([...this.pendingOutbox]));
+    }
+
     async #init() {
+        await this.initializeQuestionBackfill();
+        const { parseOutbox } = await import('./messageOutbox');
+        this.pendingOutbox = parseOutbox(loadEncryptedOutbox(`${getServerUrl()}#${this.anonID}`));
 
         // Subscribe to updates
         this.subscribeToUpdates();
@@ -480,7 +543,7 @@ class Sync {
     private getSendSync(sessionId: string): InvalidateSync {
         let sync = this.sendSync.get(sessionId);
         if (!sync) {
-            sync = new InvalidateSync(() => this.flushOutbox(sessionId));
+            sync = new InvalidateSync(() => this.flushOutboxSerialized(sessionId));
             this.sendSync.set(sessionId, sync);
         }
         return sync;
@@ -542,7 +605,7 @@ class Sync {
             return true;
         }
         for (const messages of this.pendingOutbox.values()) {
-            if (messages.length > 0) {
+            if (messages.some(message => !message.failed)) {
                 return true;
             }
         }
@@ -638,8 +701,8 @@ class Sync {
             if (pending.length === 0) {
                 continue;
             }
-            pending.length = 0;
-            this.pendingOutbox.delete(sessionId);
+            pending.forEach(message => { message.failed = true; });
+            this.persistOutbox();
             sessionIds.push(sessionId);
         }
 
@@ -672,6 +735,7 @@ class Sync {
     }
 
     async sendMessage(sessionId: string, text: string, options?: SendMessageOptions) {
+        await this.flushSessionConfiguration(sessionId);
         if (this.visibleSessions.has(sessionId)) this.ensureSessionResources(sessionId);
 
         // Get encryption
@@ -687,10 +751,19 @@ class Sync {
         }
 
         const machine = session.metadata?.machineId ? storage.getState().machines[session.metadata.machineId] : undefined;
-        const { permissionMode, model, effort } = resolveMessageModeMeta(session, machine?.metadata);
+        const { resolveMessageModeMeta, resolveMessageCodexPreferenceMeta } = await import('./messageMeta');
+        const modeMeta = resolveMessageModeMeta(session, machine?.metadata);
         const { displayText } = options ?? {};
 
-        // Generate local ID
+        const { messageRequestKey, recoverOutboxRequest } = await import('./messageOutbox');
+        const requestKey = messageRequestKey([text, options?.images, options?.codexFollowupMode, options?.codexInterruptTarget, options?.branchId ?? session.metadata?.activeCodexBranchId, modeMeta, resolveMessageCodexPreferenceMeta(session, machine?.metadata)]);
+        const previous = await recoverOutboxRequest(this.pendingOutbox, getConversationRuntimeIds(Object.values(storage.getState().sessions), sessionId), sessionId, requestKey, this.encryption);
+        if (previous) {
+            previous.failed = false; this.persistOutbox();
+            await this.flushOutboxSerialized(sessionId);
+            return;
+        }
+        // The same ciphertext and local id are retained through ambiguous failures.
         const localId = randomId();
 
         // Determine sentFrom based on platform
@@ -715,9 +788,7 @@ class Sync {
         const { images } = options ?? {};
         const messageMeta = {
             sentFrom,
-            permissionMode,
-            model,
-            effort,
+            ...modeMeta,
             ...(session.metadata?.flavor === 'codex' ? resolveMessageCodexPreferenceMeta(session, machine?.metadata) : {}),
             ...(options?.codexInterruptTarget ? { codexInterruptTarget: options.codexInterruptTarget } : {}),
             ...(options?.codexFollowupMode ? { codexFollowupMode: options.codexFollowupMode } : {}),
@@ -761,9 +832,6 @@ class Sync {
         // Add to messages - normalize the raw record
         const createdAt = Date.now();
         const normalizedMessage = normalizeRawMessage(localId, localId, createdAt, localEchoContent);
-        if (normalizedMessage) {
-            this.enqueueMessages(sessionId, [normalizedMessage]);
-        }
 
         let messageContent: any;
         try {
@@ -812,7 +880,7 @@ class Sync {
                     message: 'Image upload failed. Please retry.'
                 }
             }]);
-            return;
+            throw error instanceof Error ? error : new Error('Image upload failed. Please retry.');
         }
 
         const content: RawRecord = {
@@ -822,6 +890,7 @@ class Sync {
         };
         const encryptedRawRecord = await encryption.encryptRawRecord(content);
 
+
         let pending = this.pendingOutbox.get(sessionId);
         if (!pending) {
             pending = [];
@@ -829,10 +898,14 @@ class Sync {
         }
         pending.push({
             localId,
-            content: encryptedRawRecord
+            content: encryptedRawRecord,
+            requestKey,
         });
-        this.getSendSync(sessionId).invalidate();
+        this.persistOutbox();
+        if (normalizedMessage) this.enqueueMessages(sessionId, [normalizedMessage]);
+        this.getSendSync(sessionId);
         this.maybeStartBackgroundSendWatchdog();
+        await this.flushOutboxSerialized(sessionId);
     }
 
     /** Server sent us settings — merge any pending local changes on top, then apply as one update. */
@@ -1742,6 +1815,14 @@ class Sync {
         }
     }
 
+    private flushOutboxSerialized(sessionId: string): Promise<void> {
+        const current = this.outboxFlushes.get(sessionId);
+        if (current) return current.then(() => this.pendingOutbox.get(sessionId)?.some(message => !message.failed) ? this.flushOutboxSerialized(sessionId) : undefined);
+        const operation = this.flushOutbox(sessionId).finally(() => this.outboxFlushes.delete(sessionId));
+        this.outboxFlushes.set(sessionId, operation);
+        return operation;
+    }
+
     private flushOutbox = async (sessionId: string) => {
         const pending = this.pendingOutbox.get(sessionId);
         if (!pending || pending.length === 0) {
@@ -1753,9 +1834,12 @@ class Sync {
             return;
         }
 
-        const batch = pending.slice();
+        const batch = pending.filter(message => !message.failed);
+        if (!batch.length) return;
+        const encryption = this.encryption;
         const controller = new AbortController();
         this.sendAbortControllers.set(sessionId, controller);
+        const timeout = setTimeout(() => controller.abort(), 15_000);
         const requestBody = JSON.stringify({
             messages: batch.map((message) => ({
                 localId: message.localId,
@@ -1784,7 +1868,12 @@ class Sync {
             }
 
             const data = await response.json() as V3PostSessionMessagesResponse;
-            pending.splice(0, batch.length);
+            if (encryption !== this.encryption) throw new Error('账号已变化');
+            const acknowledged = new Set(data.messages?.map(message => message.localId));
+            if (batch.some(message => !acknowledged.has(message.localId))) throw new Error('消息未取得完整送达回执，请重试');
+            const ids = new Set(batch.map(message => message.localId));
+            pending.splice(0, pending.length, ...pending.filter(message => !ids.has(message.localId)));
+            this.persistOutbox();
             const acknowledgedQuestionAt = data.messages.reduce((latest, message) => Math.max(latest, message.createdAt), 0);
             const session = storage.getState().sessions[sessionId];
             if (session && acknowledgedQuestionAt > 0) this.applySessions([{ ...session, lastUserMessageAt: acknowledgedQuestionAt }]);
@@ -1797,14 +1886,18 @@ class Sync {
                 pendingCount: batch.length,
                 error,
             });
+            for (const message of batch) message.failed = true;
+            this.persistOutbox();
             this.maybeStartBackgroundSendWatchdog();
             throw error;
         } finally {
+            clearTimeout(timeout);
             this.sendAbortControllers.delete(sessionId);
         }
 
         if (pending.length === 0) {
             this.pendingOutbox.delete(sessionId);
+            this.persistOutbox();
         }
         if (!this.hasPendingOutboxMessages()) {
             this.clearBackgroundSendWatchdog();
@@ -2536,7 +2629,7 @@ class Sync {
             if (storage.getState().sessionMessages[session.id]) storage.getState().applyMessagePageState(session.id, { isLoadingOlder: false, isLoadingLatest: false });
             if (this.messagesSync.has(session.id)) this.getMessagesSync(session.id).invalidate();
         }
-        this.questionBackfill.enqueue(sessions.map(session => {
+        this.questionBackfill?.enqueue(sessions.map(session => {
             const current = storage.getState().sessions[session.id] ?? session;
             return { id: current.id, seq: current.seq, indexedThroughSeq: current.lastUserMessageIndexedSeq };
         }));

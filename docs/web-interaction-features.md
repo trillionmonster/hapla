@@ -84,8 +84,32 @@ slash-command text to the model as an imitation of a native command.
 - Attachments show file name, size, and upload state before sending. A
   single-choice question can be answered by selecting an option; multi-question
   and free-text requests require explicit submission.
-- Codex reply settings apply to the next message. Model, reasoning, and Fast
-  options come from the installed CLI.
+- Conversation execution settings are shared through the encrypted conversation
+  root, across browsers and replacement runtimes. Field changes use versioned
+  compare-and-swap, preserving concurrent changes to other fields. Model,
+  reasoning, Fast, verbosity and Plan choices are explicit intent; omitted fields
+  inherit the native runtime, while an explicit default clears the override.
+  Failed discovery does not erase a selection. Model options come from the
+  installed CLI; actual model/reasoning/permission state is published separately.
+- Reply settings apply to the next main turn and the current BTW submission.
+  Steering retains the running turn's settings. The settings panel and steering
+  hint state this boundary. BTW remains read-only regardless of the main task's
+  permissions. An outer sandbox never expands the requested approval policy.
+- Sending clears a draft only after a durable server acknowledgement. Encrypted
+  pending messages are namespaced by server/account and retain the same local ID
+  across failures and reloads. Replacement runtimes re-encrypt the pending record
+  with their own key while preserving its submission ID; conversation rendering
+  merges recovered copies by that ID. Ambiguous submissions require explicit retry.
+  Upload and HTTP failures preserve the composer; quota or storage errors surface.
+- Every direct, queued and steered Codex input checks its branch before execution.
+  A refused cross-branch submission remains available for recovery. Saved queue
+  edits append an encrypted, revisioned text record targeting the original
+  message; transcript and full question history project the latest revision,
+  including when pages arrive in reverse order.
+- Editing history uses the durable native turn ID associated with the server
+  message, never its position in the visible window. Legacy text matching must
+  be unique; repeated prompts and mid-turn steering edits require an explicit
+  safe boundary instead of guessing.
 - A paused queue stays paused when sending a new direct message, replacing a
   task, or immediately sending one selected queued message. Only “继续队列”
   resumes the remaining items. Failed inputs require an explicit retry.
@@ -97,6 +121,9 @@ slash-command text to the model as an imitation of a native command.
   The composer retains its draft for retry after connectivity returns; running
   backend tasks continue. An online browser flag alone does not prove that the
   server is reachable, so the transport checks and deadlines remain in effect.
+- Settings and history popovers size themselves to the space above the composer,
+  below the application header. Landscape and short screens scroll within the
+  panel, preserving access to the first controls instead of clipping them.
 - On short mobile viewports the BTW panel compacts its controls and hides its
   picker when necessary, keeping the main composer and stop/close actions usable.
   With very little remaining height it becomes a header with reachable stop and
@@ -107,55 +134,98 @@ slash-command text to the model as an imitation of a native command.
 
 ## Persistent development page proxy
 
-In a conversation on the workbench that can reach your service, choose **预览**
-in the workspace toolbar, enter the full service address (for example
-`http://127.0.0.1:5173/`), and click **注册并打开**. Use **在浏览器打开** to
-open or save the generated URL. To change the service address, select its
-existing registration and click **更新目标并打开**; keep the original link.
-`localhost` refers to the selected workbench's host or container, rather than
-the computer running the browser. A service on another computer must be
-reachable from that workbench.
+Open **代理管理** from the desktop sidebar or Settings on a phone. The list includes
+**我创建的** and **共享给我的** filters, search, direct Open links and a rule editor.
+Each registration maps one stable handle to one workbench and one HTTP(S) target,
+including its port and optional base path. Select a workbench that can reach the
+service, enter a name and target, choose an access scope, then **保存规则**.
+Updating the target preserves the handle and reconnects existing live streams. Unsaved rules survive responsive layout changes within the same account, in memory only. Deleting a registration invalidates its
+links without stopping the actual upstream service. A disconnected workbench
+returns a retryable error; the fixed entry resumes when it reconnects.
 
-The preview panel registers an HTTP(S) target reachable from the selected
-workbench. It returns `/preview/<handle>/`, resolved against the browser's actual
-Hapla origin, including its current port. Agents can also use the Hapla MCP tools
-`register_web_preview` and `list_web_previews`; return their relative URL as a
-Markdown link. Reusing a workbench/name or updating a selected handle changes the
-target while preserving the URL. Registration is stored in the relay database.
-Codex's STDIO MCP bridge discovers and forwards the HTTP server's registered
-tools, including both preview tools, with their original schemas and results.
-Tool discovery and invocation must be checked through the STDIO transport;
-testing only the HTTP server does not establish availability to Codex.
+Links use `/preview/<handle>/` resolved against the browser's current Hapla origin,
+including the actual scheme and externally forwarded port. Click the service name
+or **打开服务** to verify the current account and open the upstream. Copying a link
+does not change its access permissions. The conversation's **预览** screen also
+opens existing registrations directly and links to the full manager; local HTML
+files retain their existing isolated snapshot preview.
 
-Only the authenticated account owning the registration can open it. The browser
-receives an HttpOnly, SameSite preview cookie after login verification; logout or
-account switching clears it. Every request and WebSocket handshake rechecks
-account ownership. Hapla authorization headers and cookies are stripped before
-upstream forwarding. Each target must belong to an owned workbench.
+| Scope | Who can open | Management |
+| --- | --- | --- |
+| 仅自己 (default) | The owning authenticated account | Owner only |
+| Hapla 全部用户 | Every authenticated account on this Hapla instance; listed under shared services | Owner only |
+| 公网凭密钥 | Anyone holding the generated key, without a Hapla login or the outer site password | Owner only |
+
+There is no anonymous, unkeyed scope. Save the key mode, then choose **生成共享密钥**.
+The random key is returned only at generation and masked by default; copy it or the keyed share URL before
+closing the editor. The database stores a hash, and list APIs never disclose raw
+keys. Keyed URLs put the key in the fragment, not the HTTP path or query. The
+trusted entry page consumes and removes the fragment before opening the service.
+An unkeyed link presents a key input. **重新生成密钥**, **撤销密钥**, a scope change,
+or deletion invalidates old keys and grants on subsequent HTTP requests and
+WebSocket handshakes, and closes existing proxy HTTP streams and WebSockets. Target updates preserve existing grants and the entry URL.
+
+Sharing requires `HAPLA_PREVIEW_HOST_TEMPLATE`, for example
+`{handle}.preview.example.com`. Configure wildcard DNS/TLS and forward these hosts
+to the same Web service through every proxy layer. Hapla preserves the browser's
+actual protocol and port when opening the isolated host. Each handle has a
+separate browser origin, so upstream applications cannot read the main Hapla
+origin's account keys or another handle's storage. Without this configuration,
+existing owner-only paths remain available and the manager disables sharing.
+Configuration changes are deployment work and require the appropriate authorization;
+development verification uses dev-only hosts and ports.
+
+The trusted entry verifies the account or share key, then exchanges a signed,
+handle-scoped grant on the isolated origin for an HttpOnly cookie. Grants expire
+after at most 24 hours; reopen the original entry to renew. Account-based grants
+also belong to the current browser login lease. Logout or account switching
+revokes that lease and closes its existing HTTP/WebSocket streams on isolated
+hosts, while another device and anonymous keyed viewers retain their own access. Every HTTP request and
+WebSocket handshake rechecks the current access version. A grant is not a Hapla
+API bearer token. Forwarding uses the **owner's** workbench even when the viewer
+is another account. Shared list entries expose the name and fixed handle, without
+the owner's target IP, workbench ID or editing configuration. Hapla account authorization
+headers and cookies are stripped before upstream forwarding. Isolated services
+retain their own Basic/Bearer authentication headers.
+
+Agents can use `register_web_preview` and `list_web_previews`; their relative links
+use the current browser entry. Reusing a workbench/name or updating a handle keeps
+the URL. Agent updates preserve an existing sharing scope; agent-created entries
+default to private. The Codex STDIO MCP bridge must discover and call these tools
+through the actual transport, not just the underlying HTTP server.
 
 The daemon tunnels live HTTP, POST bodies, binary data, SSE, and WebSockets.
-HTML receives a small routing bridge for root-relative fetch, modules, styles,
-and HMR; Web serving layers redirect root resources using the preview referrer.
-Simultaneous tabs keep separate handles. Upstream restart, a new target address,
-or relay restart does not change the handle; requests resume once the target and
-workbench reconnect. Offline requests show a retryable error.
-Additional reverse proxies and port mappings use the browser's external origin;
-forwarding layers must carry HTTP and WebSocket traffic to Hapla, including
-`/preview/`. The target service does not need its own public listening port.
-Nginx emits relative redirects (`absolute_redirect off`) so a root-level link,
-form submission, or directory redirect retains the browser's external scheme
-and port. Browser acceptance must exercise a real Nginx hop behind an external
-HTTP and HTTPS port, including login navigation, form POST, response cookies,
-and the post-login redirect; a Node development server alone misses this case.
+HTML receives a routing bridge for root-relative fetch, modules, styles and HMR;
+Web serving layers redirect root resources using the preview referrer. Additional
+HTTP/HTTPS forwarding layers must carry `/preview/` and WebSocket traffic,
+retain the external Host or X-Forwarded-Host, and retain the first external
+X-Forwarded-Proto value. The Web proxy normalizes comma-separated forwarding
+chains, including when an intermediate proxy rewrites its internal Host.
+Nginx uses relative redirects to retain the actual external scheme and port.
+Browser acceptance includes real Nginx, root navigation, login form POST, cookies,
+post-login redirects, target replacement, sharing authorization and revocation.
 
-The workbench must remain connected and able to reach the target. External
-websites retain their own embedding and CSP restrictions. Workspace HTML file
-previews retain the isolated snapshot sandbox and file-resource limits described
-by the existing workspace preview implementation. Registered live development
-apps run under the selected Hapla browser origin.
+Upstream CSP and embedding rules still apply. Keep preview hosts on the same
+site as Hapla for embedded views, or use **在浏览器打开** when browser third-party
+cookie restrictions prevent embedding.
 
 Update Web, Server (including database migrations), and CLI together when this
 feature is released. Development validation does not authorize production deployment.
+
+## New conversation image and keyboard input
+
+Pasted and selected images share the same decode/compress/thumbnail path before
+uploading. Sending is disabled during preparation; rejected images show a visible
+error. A first-message upload or delivery failure retains the prompt and images,
+and a retry reuses the created session for the same configuration. Repeated Send
+clicks do not spawn duplicate sessions.
+
+Software-keyboard Return inserts a newline on phones and touch tablets, including
+browsers that report a fine primary pointer. Desktop physical keyboards retain
+the Enter-to-send setting and Shift+Enter newline. Composition events and the
+trailing IME confirmation Enter do not submit a message. Browser acceptance covers
+paste, file selection, a failed upload followed by retry, phone Return, and IME
+confirmation in both the new and existing conversation composers.
 
 ## Retained ASR implementation
 
@@ -163,3 +233,33 @@ feature is released. Development validation does not authorize production deploy
 dictation uses `HAPLA_ASR_PAGE_URL` or `EXPO_PUBLIC_ASR_URL`. These settings do not
 re-enable the hidden voice controls. See [configuration](configuration.md) and the
 [local ASR guide](../integrations/local-asr/README.md).
+
+## Source control workbench
+
+Coder mode's **Changes** opens complete paged diffs, file staging, commits,
+branch pushes, draft GitHub pull requests/checks, and Codex turn checkpoints.
+Restore coordinates a native conversation fork with files in an exclusive
+worktree; it preserves the original branch and rejects stale or shared workspace
+state. See [the coding workbench guide](coding-workbench.md) for supported
+providers, recovery, GitHub prerequisites, and context-capacity reporting.
+
+## Continuation execution context
+
+Manual `hapla resume` and daemon/Web continuation preserve the stable conversation
+root and branch state, so pending queues, BTW records, turn identities and
+checkpoints remain associated with the same conversation. Native launch arguments,
+profile, sandbox opt-out and provider environment are stored in a private
+`runtime-launches` record (directory `0700`, files `0600`). Encrypted session
+metadata carries only the opaque reference. Referenced state that has disappeared
+causes an explicit failure rather than silently starting with different options.
+Standalone resume reads the current `access.key` login first, retaining `agent.key`
+compatibility when no current login exists; it never substitutes a stale account.
+Manual continuation reads the latest root configuration as well as the current
+runtime's native thread identity. Existing sessions predating these records retain
+their legacy continuation path; missing historical launch data cannot be recreated.
+
+`session-state.mts` covers fresh-device settings, field synchronization, branch
+rejection, durable queue revisions and failed-upload retry with real Codex and a
+local Responses fixture. `session-state-native.mts` checks explicit model/effort
+reset against the configured native defaults. See the
+[acceptance utilities](../scripts/acceptance/README.md).

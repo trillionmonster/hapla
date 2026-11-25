@@ -2,15 +2,8 @@ import type { ApprovalPolicy, SandboxMode } from './codexAppServerTypes';
 
 export function resolveCodexExecutionPolicy(
     permissionMode: import('@/api/types').PermissionMode,
-    sandboxManagedByHapla: boolean,
+    _sandboxManagedByHapla: boolean,
 ): { approvalPolicy: ApprovalPolicy; sandbox: SandboxMode } {
-    if (sandboxManagedByHapla) {
-        return {
-            approvalPolicy: 'never',
-            sandbox: 'danger-full-access',
-        };
-    }
-
     const approvalPolicy: ApprovalPolicy = (() => {
         switch (permissionMode) {
             // Codex native modes

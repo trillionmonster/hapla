@@ -47,7 +47,7 @@ describe('Hapla MCP STDIO to HTTP tool bridge', () => {
   });
 
   it('forwards preview registration, stable URLs and errors to the HTTP owner context', async () => {
-    const result = { handle, name: 'dev-app', target: 'http://127.0.0.1:5173/', url: `/preview/${handle}/`, access: 'current-account-only' };
+    const result = { handle, name: 'dev-app', target: 'http://127.0.0.1:5173/', url: `/preview/${handle}/`, access: 'private' as const };
     vi.mocked(registerDevelopmentPreview).mockResolvedValueOnce(result);
     const args = { name: result.name, target: result.target, handle };
     const reply = await client.callTool({ name: 'register_web_preview', arguments: args });

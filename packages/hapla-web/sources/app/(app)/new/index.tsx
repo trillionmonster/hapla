@@ -1,3 +1,5 @@
+import { randomId } from '@/utils/randomId';
+import { composerUsesTouchKeyboard } from '@/utils/composerKeyboard';
 import React from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -37,7 +39,7 @@ import { sync } from '@/sync/sync';
 import { isMachineOnline } from '@/utils/machineUtils';
 import { machineSpawnNewSession } from '@/sync/ops';
 import { WorkspaceDirectoryPicker } from '@/components/WorkspaceDirectoryPicker';
-import { createWorktree, listWorktrees } from '@/utils/worktree';
+import { createWorktree, removeWorktree, listWorktrees } from '@/utils/worktree';
 import { resolveAbsolutePath } from '@/utils/pathUtils';
 import { formatPathRelativeToHome, formatLastSeen } from '@/utils/sessionUtils';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
@@ -467,6 +469,12 @@ function NewSessionScreen() {
     const [showReplySettings, setShowReplySettings] = React.useState(false);
     const [activePicker, setActivePicker] = React.useState<PickerType | null>(null);
     const [pastedImages, setPastedImages] = React.useState<PastedImage[]>([]);
+    const [preparingImages, setPreparingImages] = React.useState(false);
+    const imagePreparationCount = React.useRef(0);
+    const sendInProgress = React.useRef(false);
+    const initialWorktree = React.useRef<{ configuration: string; path: string; head?: string } | null>(null);
+    const spawnRequest = React.useRef<{ configuration: string; id: string } | null>(null);
+    const pendingInitialSession = React.useRef<{ configuration: string; sessionId: string } | null>(null);
     const [environmentRows, setEnvironmentRowsState] = React.useState<EnvironmentRow[]>(() => (
         Object.entries(draft.environmentVariables).map(([key, value], index) => ({
             id: `env-initial-${index}`,
@@ -602,6 +610,7 @@ function NewSessionScreen() {
     }, [resolvedSelectedPath]);
 
     // Fetch existing worktrees from the selected machine/path
+    const [worktreeLookupError, setWorktreeLookupError] = React.useState('');
     const [worktreeItems, setWorktreeItems] = React.useState<PickerItem[]>([]);
     React.useEffect(() => {
         if (!selectedMachineId || !debouncedResolvedSelectedPath) {
@@ -612,7 +621,7 @@ function NewSessionScreen() {
             setWorktreeItems([]);
             return;
         }
-        let cancelled = false;
+        let cancelled = false; setWorktreeLookupError('');
         listWorktrees(selectedMachineId, debouncedResolvedSelectedPath).then(worktrees => {
             if (cancelled) return;
             setWorktreeItems(worktrees.map(wt => ({
@@ -620,6 +629,8 @@ function NewSessionScreen() {
                 label: wt.branch,
                 subtitle: wt.path,
             })));
+        }).catch(error => {
+            if (!cancelled) { setWorktreeItems([]); setWorktreeLookupError(error instanceof Error ? error.message : String(error)); }
         });
         return () => { cancelled = true; };
     }, [debouncedResolvedSelectedPath, selectedMachineId, selectedMachine]);
@@ -769,7 +780,7 @@ function NewSessionScreen() {
     const agent = availableAgents.find(a => a.key === selectedAgent) ?? ALL_AGENTS[0];
     const currentPermission = permissionModes[permissionIndex] ?? permissionModes[0];
     const currentEffort = effortLevels[effortIndex] ?? effortLevels[0];
-    const attachments = useWorkspaceAttachments({ scope: `new:${selectedMachineId}:${selectedPath}`, active: true, prepareSession: async () => { throw new Error('请创建会话后重试附件上传'); } });
+    const attachments = useWorkspaceAttachments({ scope: `new:${selectedMachineId}:${selectedPath}`, active: true, prepareSession: async () => { const pending = pendingInitialSession.current; if (!pending) throw new Error('请先创建会话后重试附件上传'); return pending.sessionId; } });
     const permissionStyle = currentPermission?.key !== 'default' ? getPermissionStyle(currentPermission.key) : null;
 
     // Display values
@@ -824,7 +835,19 @@ function NewSessionScreen() {
         setActivePicker(null);
     }, [activePicker, setSelectedMachineId, setSelectedPath, setWorktreeKey]);
 
+    const handleIncomingImages = React.useCallback(async (images: PastedImage[]) => {
+        if (!images.length || sendInProgress.current) return;
+        imagePreparationCount.current++; setPreparingImages(true);
+        try {
+            const { acceptedImages, rejectedImages } = Platform.OS === 'web' ? await prepareWebImagesForUpload(images) : { acceptedImages: images, rejectedImages: [] };
+            if (acceptedImages.length) setPastedImages(previous => [...previous, ...acceptedImages]);
+            if (rejectedImages.length) Modal.alert(t('common.error'), getWebImageFailureMessage(rejectedImages));
+        } catch (error) { Modal.alert(t('common.error'), error instanceof Error ? error.message : '图片处理失败，请重新选择'); }
+        finally { imagePreparationCount.current--; setPreparingImages(imagePreparationCount.current > 0); }
+    }, []);
+
     const handlePickImages = React.useCallback(async () => {
+        if (sendInProgress.current) return;
         if (Platform.OS === 'web') {
             const input = webFileInputRef.current;
             if (!input) return;
@@ -837,16 +860,7 @@ function NewSessionScreen() {
                 const imageFiles = files.filter((file) => file.type.startsWith('image/'));
                 if (imageFiles.length === 0) return;
 
-                const results = await readWebImageFiles(imageFiles);
-                const { acceptedImages, rejectedImages } = await prepareWebImagesForUpload(results);
-
-                if (acceptedImages.length > 0) {
-                    setPastedImages((prev) => [...prev, ...acceptedImages]);
-                }
-                if (rejectedImages.length > 0) {
-                    console.error('Rejected web images before new-session send:', rejectedImages.map((image) => image.mediaType));
-                    Modal.alert(t('common.error'), getWebImageFailureMessage(rejectedImages));
-                }
+                await handleIncomingImages(await readWebImageFiles(imageFiles));
             };
 
             input.click();
@@ -868,14 +882,12 @@ function NewSessionScreen() {
                 mediaType: asset.mimeType ?? 'image/jpeg',
             }));
 
-        if (images.length > 0) {
-            setPastedImages((prev) => [...prev, ...images]);
-        }
-    }, []);
+        await handleIncomingImages(images);
+    }, [handleIncomingImages]);
 
     // Spawn session handler
     const handleSend = React.useCallback(async (approvedNewDirectoryCreation: boolean = false) => {
-        if (voiceBusy || isSpawning) return;
+        if (voiceBusy || isSpawning || sendInProgress.current || imagePreparationCount.current > 0) return;
         if (!selectedMachineId || !selectedMachine) {
             Modal.alert(t('common.error'), 'Please select a machine');
             return;
@@ -892,21 +904,32 @@ function NewSessionScreen() {
             return;
         }
 
+        sendInProgress.current = true;
         setIsSpawning(true);
+        let createdWorktree: { path: string; head?: string } | null = null;
+        let spawnedSession = false;
+        let confirmedSpawnFailure = false;
         try {
             const pathToUse = trimPathInput(selectedPath) || '~';
             const absolutePath = resolveAbsolutePath(pathToUse, selectedMachine.metadata?.homeDir);
 
+            const configuration = JSON.stringify({ selectedMachineId, selectedPath, selectedAgent, worktreeKey, environmentVariables });
+
+            if (spawnRequest.current?.configuration !== configuration) spawnRequest.current = { configuration, id: randomId() };
             // Handle worktree selection
             let spawnDirectory = absolutePath;
-            if (worktreeKey === '__new__') {
+            if (worktreeKey === '__new__' && initialWorktree.current?.configuration === configuration) {
+                spawnDirectory = initialWorktree.current.path;
+            } else if (worktreeKey === '__new__' && pendingInitialSession.current?.configuration !== configuration) {
                 const worktreeResult = await createWorktree(selectedMachineId, absolutePath);
                 if (!worktreeResult.success) {
                     Modal.alert(t('common.error'), worktreeResult.error || 'Failed to create worktree');
                     return;
                 }
                 spawnDirectory = worktreeResult.worktreePath;
-            } else if (worktreeKey !== '__none__') {
+                createdWorktree = { path: worktreeResult.worktreePath, head: worktreeResult.head };
+                initialWorktree.current = { configuration, ...createdWorktree };
+            } else if (worktreeKey !== '__none__' && worktreeKey !== '__new__') {
                 // Existing worktree — use its path directly
                 spawnDirectory = worktreeKey;
             }
@@ -918,7 +941,12 @@ function NewSessionScreen() {
                 lastUsedModelMode: currentModelKey,
             });
 
-            const result = await machineSpawnNewSession({
+            // Keep the created session when image/file upload or first delivery
+            // fails, so a retry does not create another empty conversation.
+            const result = pendingInitialSession.current?.configuration === configuration
+                ? { type: 'success' as const, sessionId: pendingInitialSession.current.sessionId }
+                : await machineSpawnNewSession({
+                requestId: spawnRequest.current!.id,
                 machineId: selectedMachineId,
                 directory: spawnDirectory,
                 approvedNewDirectoryCreation,
@@ -928,6 +956,9 @@ function NewSessionScreen() {
 
             switch (result.type) {
                 case 'success':
+                    spawnedSession = true;
+                    initialWorktree.current = null;
+                    pendingInitialSession.current = { configuration, sessionId: result.sessionId };
                     await sync.refreshSessions();
 
                     // Set permission mode and model on the session before sending
@@ -950,6 +981,7 @@ function NewSessionScreen() {
                     }
 
                     // Clear input text so draft doesn't repeat the sent message
+                    pendingInitialSession.current = null;
                     setPrompt('');
                     setPastedImages([]);
                     setEnvironmentRowsState([]);
@@ -965,11 +997,14 @@ function NewSessionScreen() {
                         { cancelText: t('common.cancel'), confirmText: t('common.create') },
                     );
                     if (approved) {
+                        sendInProgress.current = false;
                         await handleSend(true);
                     }
                     break;
                 }
                 case 'error':
+                    confirmedSpawnFailure = result.confirmed === true;
+                    if (confirmedSpawnFailure) spawnRequest.current = null;
                     Modal.alert(t('common.error'), result.errorMessage);
                     break;
             }
@@ -979,15 +1014,21 @@ function NewSessionScreen() {
                 : 'Failed to start session';
             Modal.alert(t('common.error'), errorMessage);
         } finally {
+            if (createdWorktree && !spawnedSession && confirmedSpawnFailure) {
+                const cleaned = await removeWorktree(selectedMachineId, createdWorktree.path, createdWorktree.head);
+                if (cleaned.success) initialWorktree.current = null;
+                if (!cleaned.success) Modal.alert(t('common.error'), `Worktree kept at ${createdWorktree.path}: ${cleaned.error}`);
+            }
+            sendInProgress.current = false;
             setIsSpawning(false);
         }
     }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, router, navigateToSession, currentPermission.key, currentModelKey, currentEffort?.key, worktreeKey, pastedImages, environmentRows, environmentVariables, voiceBusy, isSpawning, codexPreferences, attachments]);
 
-    const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning && !voiceBusy;
+    const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning && !voiceBusy && !preparingImages;
 
     // Handle Enter/Cmd+Enter to send on web
     const handleKeyPress = React.useCallback((event: KeyPressEvent): boolean => {
-        const touchKeyboard = Platform.OS === 'web' && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+        const touchKeyboard = Platform.OS === 'web' && composerUsesTouchKeyboard();
         if (Platform.OS === 'web' && !touchKeyboard && event.key === 'Enter' && !event.shiftKey && agentInputEnterToSend) {
             if (canSend) {
                 handleSend();
@@ -1289,7 +1330,10 @@ function NewSessionScreen() {
                                     onClose={() => setActivePicker(null)}
                                 />
                             ) : pickerData ? (
-                                <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                                <>
+                                    {activePicker === 'worktree' && !!worktreeLookupError && <Text accessibilityRole="alert" style={{ padding: 12, color: theme.colors.textDestructive }}>{worktreeLookupError}</Text>}
+                                    <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                                </>
                             ) : null}
                         </View>
                     )}
@@ -1345,6 +1389,7 @@ function NewSessionScreen() {
                                         onPress={() => setPastedImages((prev) => prev.filter((_, i) => i !== index))}
                                         accessibilityRole="button"
                                         accessibilityLabel={`Remove image ${index + 1}`}
+                                        disabled={isSpawning}
                                         hitSlop={10}
                                         style={[styles.imageRemoveButton, { backgroundColor: theme.colors.surfaceHigh }]}
                                     >
@@ -1359,11 +1404,13 @@ function NewSessionScreen() {
                     <View style={styles.inputBox}>
                         {attachments.preview}
                         <VoiceInputStatus feedback={voiceFeedback} />
+                        {preparingImages && <Text accessibilityRole="text" style={{ color: theme.colors.textSecondary, paddingHorizontal: 12, fontSize: 12 }}>正在处理图片…</Text>}
                         <View style={styles.inputField}>
                             <View style={{ flex: 1 }}>
                                 <MultiTextInput
                                     ref={composerInputRef}
                                     value={prompt}
+                                    editable={!isSpawning}
                                     onChangeText={setPrompt}
                                     placeholder="What would you like to work on?"
                                     accessibilityLabel="Session prompt"
@@ -1373,19 +1420,17 @@ function NewSessionScreen() {
                                     maxHeight={240}
                                     onKeyPress={handleKeyPress}
                                     {...(Platform.OS === 'web' ? {
-                                        onPasteImages: (images: PastedImage[]) => {
-                                            setPastedImages((prev) => [...prev, ...images]);
-                                        },
+                                        onPasteImages: (images: PastedImage[]) => { void handleIncomingImages(images); },
                                     } : {})}
                                 />
                             </View>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingBottom: 6 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Pressable accessibilityRole="button" accessibilityLabel="添加附件" onPress={attachments.pick} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                                <Pressable accessibilityRole="button" accessibilityLabel="添加附件" disabled={isSpawning} onPress={attachments.pick} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
                                     <Ionicons name="attach-outline" size={20} color={theme.colors.button.secondary.tint} />
                                 </Pressable>
-                                {!showProminentMobileWebImageButton && <Pressable accessibilityRole="button" accessibilityLabel="Attach image" onPress={handlePickImages} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                                {!showProminentMobileWebImageButton && <Pressable accessibilityRole="button" accessibilityLabel="Attach image" disabled={isSpawning} onPress={handlePickImages} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
                                     <Ionicons name="image-outline" size={18} color={theme.colors.button.secondary.tint} />
                                 </Pressable>}
                                 <VoiceInput value={prompt} onChangeText={setPrompt} onBusyChange={setVoiceBusy} onFeedbackChange={setVoiceFeedback} scope={`new:${selectedMachineId}:${selectedPath}`} />
@@ -1439,7 +1484,7 @@ function NewSessionScreen() {
                     <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
                 </Pressable>
                 <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
-                    <CodexControls preferences={codexPreferences} onChange={setCodexPreferences} effort={currentEffort} efforts={effortLevels}
+                    <CodexControls preferences={codexPreferences} onChange={patch => setCodexPreferences(previous => ({ ...previous, ...patch }))} effort={currentEffort} efforts={effortLevels}
                         onEffortChange={level => { setEffortIndex(effortLevels.findIndex(option => option.key === level.key)); draft.setEffortLevel(level.key); }} serviceTiers={currentModel.supportedServiceTiers} />
                 </ScrollView>
             </BottomSheet>
@@ -1458,7 +1503,10 @@ function NewSessionScreen() {
                                     onClose={() => setActivePicker(null)}
                                 />
                     ) : pickerData ? (
-                        <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                        <>
+                                    {activePicker === 'worktree' && !!worktreeLookupError && <Text accessibilityRole="alert" style={{ padding: 12, color: theme.colors.textDestructive }}>{worktreeLookupError}</Text>}
+                                    <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                                </>
                     ) : null}
                 </BottomSheet>
             )}

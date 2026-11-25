@@ -16,6 +16,7 @@ environment; they do not automatically load `.env.selfhost`.
 | `HAPLA_PORT` | Wizard searches from `12345`; manual Compose uses `12345` | Published Web port; 9980 remains reserved by the deployment guard |
 | `HAPLA_DOCKER_SUBNET` | Docker selects the subnet | Optional private IPv4 CIDR for a named network when Docker's default address pool is exhausted |
 | `HAPLA_ASR_URL` | Empty | Optional ASR endpoint reachable from the server container; must be explicitly configured |
+| `HAPLA_PREVIEW_HOST_TEMPLATE` | Empty | Per-proxy isolated hostname, e.g. `{handle}.preview.example.com`; wildcard DNS/TLS and every forwarding hop must reach the same Web. Required for sharing; preserves the browser's actual scheme and port |
 | `HAPLA_ASR_PAGE_URL` | Empty | Public HTTPS dictation-page URL compiled into the Web image |
 
 The one-click wizard preserves the existing master secret and generates it only for a fresh installation.

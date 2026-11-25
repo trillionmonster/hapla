@@ -110,6 +110,8 @@ export const SettingsView = React.memo(function SettingsView() {
                 </ItemGroup>
             )}
 
+            {Platform.OS === 'web' && <ItemGroup><Item title="代理管理" subtitle="固定入口、转发规则与共享权限" icon={<Ionicons name="globe-outline" size={26} color={theme.colors.textLink} />} onPress={() => router.push('/previews')} /></ItemGroup>}
+
             {/* Machines (sorted: online first, then last seen desc) */}
             {allMachinesWithOffline.length > 0 && (
                 <ItemGroup title={t('settings.machines')}>

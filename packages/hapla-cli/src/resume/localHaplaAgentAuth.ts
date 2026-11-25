@@ -67,7 +67,8 @@ function deriveContentKeyPair(secret: Uint8Array): { publicKey: Uint8Array; secr
 }
 
 export function getLocalHaplaAgentCredentialPath(haplaHomeDir: string = configuration.haplaHomeDir): string {
-    return join(haplaHomeDir, 'agent.key');
+    const current = join(haplaHomeDir, 'access.key');
+    return existsSync(current) ? current : join(haplaHomeDir, 'agent.key');
 }
 
 export function readLocalHaplaAgentCredentials(

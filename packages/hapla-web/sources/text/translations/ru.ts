@@ -1,3 +1,4 @@
+import { gitWorkbenchCoreEnglish } from '../gitWorkbenchCoreLabels';
 import type { TranslationStructure } from '../_default';
 
 /**
@@ -26,6 +27,7 @@ function plural({ count, one, few, many }: { count: number; one: string; few: st
  * Must match the exact structure of the English translations
  */
 export const ru: TranslationStructure = {
+    gitWorkbench: gitWorkbenchCoreEnglish,
     tabs: {
         // Tab navigation labels
         inbox: 'Входящие',

@@ -14,6 +14,8 @@ export type { PermissionMode } from "@/api/types"
 import type { PermissionMode } from "@/api/types"
 
 export interface EnhancedMode {
+    sourceMessageId?: string;
+    sourceMessageCreatedAt?: number;
     permissionMode: PermissionMode;
     model?: string;
     effort?: import('@anthropic-ai/claude-agent-sdk').EffortLevel;

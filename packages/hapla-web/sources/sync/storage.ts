@@ -1,3 +1,4 @@
+import { configurationOwner, projectSessionConfiguration, preferencesPatch } from './sessionConfiguration';
 import { create } from "zustand";
 import { useShallow } from 'zustand/react/shallow'
 import equal from 'fast-deep-equal'
@@ -262,7 +263,7 @@ interface StorageState {
     updateSessionPermissionMode: (sessionId: string, mode: string) => void;
     updateSessionModelMode: (sessionId: string, mode: string) => void;
     updateSessionEffortLevel: (sessionId: string, level: string) => void;
-    updateSessionCodexPreferences: (sessionId: string, preferences: CodexPreferences) => void;
+    updateSessionCodexPreferences: (sessionId: string, preferences: Partial<CodexPreferences>) => void;
     // Artifact methods
     applyArtifacts: (artifacts: DecryptedArtifact[]) => void;
     addArtifact: (artifact: DecryptedArtifact) => void;
@@ -454,11 +455,11 @@ export const storage = create<StorageState>()((set, get) => {
             return Object.values(state.sessions).filter(s => s.active);
         },
         applySessions: (sessions: (Omit<Session, 'presence'> & { presence?: "online" | number })[]) => set((state) => {
-            // Load drafts and permission modes if sessions are empty (initial load)
-            const savedDrafts = Object.keys(state.sessions).length === 0 ? sessionDrafts : {};
-            const savedPermissionModes = Object.keys(state.sessions).length === 0 ? sessionPermissionModes : {};
-            const savedModelModes = Object.keys(state.sessions).length === 0 ? sessionModelModes : {};
-            const savedEffortLevels = Object.keys(state.sessions).length === 0 ? sessionEffortLevels : {};
+            // Historical rows can arrive after the initial batch; hydrate each arriving row.
+            const savedDrafts = loadSessionDrafts();
+            const savedPermissionModes = loadSessionPermissionModes();
+            const savedModelModes = loadSessionModelModes();
+            const savedEffortLevels = loadSessionEffortLevels();
             const savedCodexPreferences = loadSessionCodexPreferences();
 
             // Merge new sessions with existing ones
@@ -480,9 +481,7 @@ export const storage = create<StorageState>()((set, get) => {
                 const savedEffortLevel = savedEffortLevels[session.id];
                 const defaultPermissionMode = defaultPermissionModeForSession(session.metadata);
                 const resolvedPermissionMode: PermissionModeKey =
-                    (existingPermissionMode && existingPermissionMode !== 'default' ? existingPermissionMode : undefined) ||
-                    (savedPermissionMode && savedPermissionMode !== 'default' ? savedPermissionMode : undefined) ||
-                    (session.permissionMode && session.permissionMode !== 'default' ? session.permissionMode : undefined) ||
+                    existingPermissionMode ?? savedPermissionMode ?? session.permissionMode ??
                     defaultPermissionMode;
 
                 mergedSessions[session.id] = {
@@ -510,6 +509,13 @@ export const storage = create<StorageState>()((set, get) => {
                     mergedSessions[session.id].draft = null;
                 }
             });
+
+            // A canonical encrypted record owns preferences across runtime replacements and devices.
+            for (const session of Object.values(mergedSessions)) {
+                if (sync.hasPendingSessionConfiguration?.(session.id)) continue;
+                const owner = configurationOwner(session, mergedSessions);
+                mergedSessions[session.id] = { ...session, ...projectSessionConfiguration(session, mergedSessions[owner]?.metadata?.executionConfiguration) };
+            }
 
             // Build active set from all sessions (including existing ones)
             const activeSet = new Set<string>();
@@ -762,7 +768,7 @@ export const storage = create<StorageState>()((set, get) => {
                 const allModes: Record<string, string> = {};
                 const currentState = get();
                 Object.entries(currentState.sessions).forEach(([id, sess]) => {
-                    if (sess.permissionMode && sess.permissionMode !== 'default') {
+                    if (sess.permissionMode) {
                         allModes[id] = sess.permissionMode;
                     }
                 });
@@ -1028,6 +1034,7 @@ export const storage = create<StorageState>()((set, get) => {
         updateSessionPermissionMode: (sessionId: string, mode: string) => set((state) => {
             const session = state.sessions[sessionId];
             if (!session) return state;
+            sync.queueSessionConfiguration?.(sessionId, { permissionMode: mode as any });
 
             // Update the session with the new permission mode
             const updatedSessions = {
@@ -1041,7 +1048,7 @@ export const storage = create<StorageState>()((set, get) => {
             // Collect all permission modes for persistence
             const allModes: Record<string, string> = {};
             Object.entries(updatedSessions).forEach(([id, sess]) => {
-                if (sess.permissionMode && sess.permissionMode !== 'default') {
+                if (sess.permissionMode) {
                     allModes[id] = sess.permissionMode;
                 }
             });
@@ -1058,6 +1065,7 @@ export const storage = create<StorageState>()((set, get) => {
         updateSessionModelMode: (sessionId: string, mode: string) => set((state) => {
             const session = state.sessions[sessionId];
             if (!session) return state;
+            sync.queueSessionConfiguration?.(sessionId, { model: mode === 'default' ? null : mode });
 
             // Update the session with the new model mode
             const updatedSessions = {
@@ -1083,12 +1091,15 @@ export const storage = create<StorageState>()((set, get) => {
         updateSessionCodexPreferences: (sessionId, preferences) => set(state => {
             const session = state.sessions[sessionId];
             if (!session) return state;
-            saveSessionCodexPreferences({ ...loadSessionCodexPreferences(), [sessionId]: preferences });
-            return { sessions: { ...state.sessions, [sessionId]: { ...session, codexPreferences: preferences } } };
+            sync.queueSessionConfiguration?.(sessionId, preferencesPatch(preferences));
+            const merged = { verbosity: 'default' as const, serviceTier: 'default', collaborationMode: 'default' as const, ...session.codexPreferences, ...preferences };
+            saveSessionCodexPreferences({ ...loadSessionCodexPreferences(), [sessionId]: merged });
+            return { sessions: { ...state.sessions, [sessionId]: { ...session, codexPreferences: merged } } };
         }),
         updateSessionEffortLevel: (sessionId: string, level: string) => set((state) => {
             const session = state.sessions[sessionId];
             if (!session) return state;
+            sync.queueSessionConfiguration?.(sessionId, { effort: level === 'default' ? null : level });
 
             const updatedSessions = {
                 ...state.sessions,
@@ -1418,6 +1429,7 @@ export function useConversationSessionIds(sessionId: string): string[] {
 }
 
 export function messageSignature(message: Message): string {
+    if (message.kind === 'user-text' && message.meta?.codexInputId) return `input:${message.meta.codexInputId}`;
     if (message.kind === 'user-text' || message.kind === 'agent-text') {
         return `${message.kind}:${message.createdAt}:${message.text}`;
     }

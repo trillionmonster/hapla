@@ -41,7 +41,7 @@ export class PreviewBroker {
             });
             socket.on('preview-response', async (data: { id: string; data: Buffer }, acknowledge: () => void) => {
                 const stream = data && ownedHttp.has(data.id) ? this.http.get(data.id) : undefined;
-                try { if (stream && !stream.response.destroyed && !stream.response.write(data.data)) await once(stream.response, 'drain'); }
+                try { if (stream && !stream.response.destroyed && !stream.response.writableEnded && !stream.response.write(data.data)) await once(stream.response, 'drain'); }
                 catch { stream?.fail(); }
                 finally { acknowledge?.(); }
             });
@@ -94,7 +94,7 @@ export class PreviewBroker {
             clearTimeout(timer);
             if (!response.headersSent) response.writeHead(head.status, headers(head));
         }, end: () => { response.end(); cleanup(); }, fail });
-        const cancel = () => { if (!response.writableEnded) { socket.emit('preview-cancel', { id }); cleanup(); } };
+        const cancel = () => { if (!settled) { socket.emit('preview-cancel', { id }); cleanup(); } };
         response.once('close', cancel);
         try {
             const result = await socket.timeout(10_000).emitWithAck('preview-http', { id, ...target });
@@ -118,7 +118,7 @@ export class PreviewBroker {
         try { result = await socket.timeout(15_000).emitWithAck('preview-ws-open', { id, ...data }); }
         catch { owned.delete(id); socket.emit('preview-ws-close', { id }); throw new Error('Upstream websocket unavailable'); }
         if (!result?.success) { owned.delete(id); socket.emit('preview-ws-close', { id }); throw new Error('Upstream websocket unavailable'); }
-        return { protocol: result.protocol as string, attach: (ws: WebSocket) => {
+        return { protocol: result.protocol as string, cancel: () => { owned.delete(id); socket.emit('preview-ws-close', { id }); }, attach: (ws: WebSocket) => {
             this.websockets.set(id, ws);
             let pending = Promise.resolve(); let pendingBytes = 0;
             ws.on('message', (data, binary) => {

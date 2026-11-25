@@ -39,6 +39,7 @@ export default function AppLayout() {
             <Stack.Screen name="settings/defaults" options={{ headerTitle: 'New session defaults' }} />
             <Stack.Screen name="settings/skills" options={{ headerTitle: 'CLI Skills' }} />
             <Stack.Screen name="settings/skill" options={{ headerTitle: 'Skill editor' }} />
+            <Stack.Screen name="previews" options={{ headerTitle: '代理管理' }} />
             <Stack.Screen name="server" options={{ headerTitle: 'Server' }} />
             <Stack.Screen name="terminal/connect" options={{ headerShown: false, headerTitle: 'Connect machine' }} />
             <Stack.Screen name="terminal/index" options={{ headerTitle: 'Connect machine' }} />

@@ -115,6 +115,15 @@ test('configuration writes refuse symlinks and leave the linked file untouched',
   assert.equal(fs.readFileSync(target, 'utf8'), 'preserve');
 });
 
+test('preview sharing retains its isolated hostname and rejects URLs or a single shared hostname', () => {
+  const config = defaults(profile('/tmp/test-preview-config'), { HAPLA_PREVIEW_HOST_TEMPLATE: '{handle}.preview.example.com' });
+  assert.doesNotThrow(() => validateConfig(config));
+  assert.equal(defaults(profile('/tmp/test-preview-config'), config).HAPLA_PREVIEW_HOST_TEMPLATE, config.HAPLA_PREVIEW_HOST_TEMPLATE);
+  for (const value of ['preview.example.com', 'https://{handle}.example.com', '{handle}.example.com:8843', '{handle}.{handle}.com', '{handle}.bad_name.com']) {
+    assert.throws(() => validateConfig({ ...config, HAPLA_PREVIEW_HOST_TEMPLATE: value }), /HAPLA_PREVIEW_HOST_TEMPLATE/);
+  }
+});
+
 test('available-port selection skips an occupied listener', async (t) => {
   const listener = net.createServer(); listener.listen(0, '127.0.0.1'); await once(listener, 'listening');
   t.after(() => listener.close());

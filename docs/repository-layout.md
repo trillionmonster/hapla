@@ -63,3 +63,7 @@ requires an explicit `HAPLA_CODEX_PATH`.
 
 Follow [development](development.md) or [deployment](deployment.md) when starting
 from a clone. The upstream MIT copyright notices remain in [LICENSE](../LICENSE).
+
+Git workbench validators use the public `@hapla/wire/gitWorkbench` entry point.
+Browser code imports its contracts as types so worker-side request validation
+does not increase the initial Web bundle.

@@ -21,6 +21,7 @@ describe('actual question recognition without rendering historical content', () 
     ])('recognizes a supported user question: %j', record => expect(isUserQuestionRecord(record)).toBe(true));
 
     it.each([
+        { role: 'session', content: { role: 'user', ev: { t: 'text', text: 'edited', inputEdit: { messageId: 'original', revision: 1 } } } },
         agent, null, {}, { role: 'user', content: { type: 'tool-result', text: 'tool output' } },
         { role: 'session', content: { role: 'agent', ev: { t: 'text', text: 'answer' } } },
         { role: 'session', content: { role: 'user', subagent: 'worker', ev: { t: 'text', text: 'delegated prompt' } } },

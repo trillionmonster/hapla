@@ -318,9 +318,11 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const effortLevel = React.useMemo<EffortLevel | null>(() => (
         resolveCurrentOption(availableEffortLevels, [
             session.effortLevel,
-            getDefaultEffortKeyForModel(flavor, modelKey, availableModels),
+            session.metadata?.effectiveConfiguration?.effort,
+            session.metadata?.currentThoughtLevelCode,
+            'default',
         ])
-    ), [availableEffortLevels, session.effortLevel, flavor, modelKey, availableModels]);
+    ), [availableEffortLevels, session.effortLevel, session.metadata?.effectiveConfiguration?.effort, session.metadata?.currentThoughtLevelCode]);
 
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
@@ -612,6 +614,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 }
                 if (message.trim() || pastedImages.length > 0 || attachments.count > 0) {
                     const draftMessage = message;
+                    storage.getState().updateSessionDraft(sessionId, draftMessage);
                     const images = pastedImages.length > 0 ? [...pastedImages] : undefined;
                     setIsSendingMessage(true);
                     void (async () => {
@@ -624,10 +627,11 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                             const selectedDelivery = session.metadata?.flavor === 'codex' ? (slash ? ({ btw: 'btw', side: 'btw', queue: 'queue', steer: 'steer', interrupt: 'replace' } as const)[slash[1].toLowerCase() as 'btw'] : overrideDelivery ?? deliveryMode) : undefined;
                             const submittedText = slash && selectedDelivery ? slash[2] : payload.text;
                             if (selectedDelivery === 'btw') {
+                                const { resolveMessageModeMeta, resolveMessageCodexPreferenceMeta } = await import('@/sync/messageMeta');
                                 const uploadedImages = images?.length ? await uploadChatImages(images) : undefined;
                                 const requestKey = JSON.stringify([targetSessionId, sideChatId, draftMessage, images, attachments.count]);
                                 if (sideRequest.current?.key !== requestKey) sideRequest.current = { key: requestKey, id: randomId() };
-                                const result = await apiSocket.sessionCommand<{ id: string }, Record<string, unknown>>(targetSessionId, 'codex-side-send', { id: sideRequest.current.id, chatId: sideChatId, text: submittedText, images: uploadedImages });
+                                const result = await apiSocket.sessionCommand<{ id: string }, Record<string, unknown>>(targetSessionId, 'codex-side-send', { id: sideRequest.current.id, chatId: sideChatId, text: submittedText, images: uploadedImages, configuration: { ...resolveMessageModeMeta(storage.getState().sessions[targetSessionId]), ...resolveMessageCodexPreferenceMeta(storage.getState().sessions[targetSessionId]) } });
                                 sideRequest.current = null; setSideChatId(result.id); setDeliveryMode('btw'); setSidePanelOpen(true);
                             } else await sync.sendMessage(targetSessionId, submittedText, { codexInterruptTarget: selectedDelivery === 'replace' && session.agentState?.codexRuntime?.threadId ? { epoch: session.agentState.codexRuntime.epoch, threadId: session.agentState.codexRuntime.threadId, turnId: session.agentState.codexRuntime.turnId, startId: session.agentState.codexRuntime.startId ?? null } : undefined, codexFollowupMode: selectedDelivery, source: 'chat', images, displayText: payload.displayText });
                             setLatestRequest(value => value + 1);
@@ -661,6 +665,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             onFileViewerPress={() => router.push(`/session/${sessionId}/files`)}
             autocompletePrefixes={['@', '/']}
             autocompleteSuggestions={(query) => getSuggestions(sessionId, query)}
+            contextUsage={session.metadata?.contextUsage}
             usageData={sessionUsage ? {
                 inputTokens: sessionUsage.inputTokens,
                 outputTokens: sessionUsage.outputTokens,

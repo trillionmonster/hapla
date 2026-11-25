@@ -1,3 +1,4 @@
+import { gitWorkbenchCoreEnglish } from './gitWorkbenchCoreLabels';
 /**
  * English translations for the Hapla app
  * Values can be:
@@ -15,6 +16,7 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 export const en = {
+    gitWorkbench: gitWorkbenchCoreEnglish,
     tabs: {
         // Tab navigation labels
         inbox: 'Inbox',

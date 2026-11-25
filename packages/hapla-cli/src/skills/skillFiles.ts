@@ -1,6 +1,7 @@
+import { configuration } from '@/configuration';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { mkdir, readFile, readdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, realpath, rename, cp, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import type { CliSkillMetadata } from '@/codex/modelDiscovery';
 import { projectPath } from '@/projectPath';
@@ -260,9 +261,16 @@ export async function trashCliSkill(options: {
     assertProvider(options.provider);
     const allowed = await resolveAllowedSkillPath(options.provider, options.path, options.cwd, true);
     const skillDirectory = dirname(allowed.path);
-    const trashRoot = join(homedir(), '.hapla', 'trash', 'skills', options.provider);
+    const trashRoot = join(configuration.haplaHomeDir, 'trash', 'skills', options.provider);
     await mkdir(trashRoot, { recursive: true });
     const trashedPath = join(trashRoot, `${Date.now()}-${basename(skillDirectory)}`);
-    await rename(skillDirectory, trashedPath);
+    try { await rename(skillDirectory, trashedPath); }
+    catch (error: any) {
+        if (error.code !== 'EXDEV') throw error;
+        // Skills and private Hapla state may be on separate Docker mounts.
+        // Retain the original until a complete recoverable copy exists.
+        await cp(skillDirectory, trashedPath, { recursive: true, errorOnExist: true, force: false });
+        await rm(skillDirectory, { recursive: true });
+    }
     return { trashedPath };
 }

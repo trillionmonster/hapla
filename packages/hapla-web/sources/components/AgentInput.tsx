@@ -1,3 +1,5 @@
+import { contextRemaining, activeContextUsage, type ContextUsage } from './contextUsage';
+import { composerUsesTouchKeyboard } from '@/utils/composerKeyboard';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import Octicons from '@expo/vector-icons/Octicons';
 import * as React from 'react';
@@ -48,7 +50,7 @@ export interface PastedImage {
 interface AgentInputProps {
     followupControls?: React.ReactNode;
     codexPreferences?: CodexPreferences;
-    onCodexPreferencesChange?: (preferences: CodexPreferences) => void;
+    onCodexPreferencesChange?: (preferences: Partial<CodexPreferences>) => void;
     value: string;
     placeholder: string;
     onChangeText: (text: string) => void;
@@ -79,6 +81,7 @@ interface AgentInputProps {
     };
     autocompletePrefixes: string[];
     autocompleteSuggestions: (query: string) => Promise<{ key: string, text: string, component: React.ElementType }[]>;
+    contextUsage?: ContextUsage | null;
     usageData?: {
         inputTokens: number;
         outputTokens: number;
@@ -107,7 +110,7 @@ interface AgentInputProps {
     attachmentPreview?: React.ReactNode;
 }
 
-const MAX_CONTEXT_SIZE = 190000;
+
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
     container: {
@@ -313,9 +316,9 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     },
 }));
 
-const getContextWarning = (contextSize: number, alwaysShow: boolean = false, theme: Theme) => {
-    const percentageUsed = (contextSize / MAX_CONTEXT_SIZE) * 100;
-    const percentageRemaining = Math.max(0, Math.min(100, 100 - percentageUsed));
+const getContextWarning = (contextSize: number, alwaysShow: boolean = false, theme: Theme, capacity?: number | null) => {
+    const percentageRemaining = contextRemaining(contextSize, capacity);
+    if (percentageRemaining === null) return alwaysShow ? { text: t('gitWorkbench.contextUnknown', { tokens: contextSize.toLocaleString() }), color: theme.colors.textSecondary } : null;
 
     if (percentageRemaining <= 5) {
         return { text: t('agentInput.context.remaining', { percent: Math.round(percentageRemaining) }), color: theme.colors.warningCritical };
@@ -474,8 +477,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     }, [isSandboxEnabled]);
 
     // Calculate context warning
-    const contextWarning = props.usageData?.contextSize
-        ? getContextWarning(props.usageData.contextSize, props.alwaysShowContextSize ?? false, theme)
+    const activeUsage = activeContextUsage(props.contextUsage, props.modelMode?.key, props.metadata?.codexThreadId);
+    const contextTokens = activeUsage?.usedTokens ?? props.usageData?.contextSize;
+    const contextWarning = contextTokens !== undefined
+        ? getContextWarning(contextTokens, props.alwaysShowContextSize ?? false, theme, activeUsage?.contextWindow)
         : null;
 
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
@@ -720,9 +725,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         if (Platform.OS === 'web') {
             // On mobile web (touch devices), Enter should insert a newline since
             // there's no Shift key available. Users send via the send button instead.
-            // Use pointer:coarse media query instead of ontouchstart/maxTouchPoints
-            // to avoid false positives on Windows touch-screen laptops with keyboards.
-            const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+            const isTouchDevice = composerUsesTouchKeyboard();
             if (agentInputEnterToSend && event.key === 'Enter' && !event.shiftKey && !isTouchDevice) {
                 if (hasContent) {
                     if (!props.isSendDisabled && !props.isSending && !voiceBusy) {

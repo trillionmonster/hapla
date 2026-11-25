@@ -33,7 +33,7 @@ export type {
  * - safe-yolo → default
  * - read-only → default
  */
-export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'read-only' | 'safe-yolo' | 'yolo'
+export type PermissionMode = 'default' | 'dontAsk' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'read-only' | 'safe-yolo' | 'yolo'
 
 /**
  * Usage data type from Claude
@@ -251,7 +251,7 @@ export type Machine = {
  */
 export const MessageMetaSchema = z.object({
   sentFrom: z.string().optional(), // Source identifier
-  permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'read-only', 'safe-yolo', 'yolo']).optional(), // Permission mode for this message
+  permissionMode: z.enum(['default', 'dontAsk', 'acceptEdits', 'bypassPermissions', 'plan', 'read-only', 'safe-yolo', 'yolo']).optional(), // Permission mode for this message
   model: z.string().nullable().optional(), // Model name for this message (null = reset)
   effort: z.string().nullable().optional(), // CLI-advertised reasoning effort (null = reset)
   verbosity: z.enum(['low', 'medium', 'high']).nullable().optional(),
@@ -309,7 +309,7 @@ export const UserMessageSchema = z.object({
   meta: MessageMetaSchema.optional()
 })
 
-export type UserMessage = z.infer<typeof UserMessageSchema>
+export type UserMessage = z.infer<typeof UserMessageSchema> & { delivery?: { id: string; createdAt: number } }
 
 /** Extract text from a user message content (works for both text and multimodal) */
 export function getUserMessageText(message: UserMessage): string {
@@ -337,6 +337,10 @@ export const MessageContentSchema = z.union([UserMessageSchema, AgentMessageSche
 export type MessageContent = z.infer<typeof MessageContentSchema>
 
 export type Metadata = {
+  launchSpecId?: string;
+  executionConfiguration?: import('@hapla/wire').SessionConfiguration;
+  effectiveConfiguration?: import('@hapla/wire').EffectiveSessionConfiguration;
+  contextUsage?: { usedTokens: number; contextWindow: number | null; model?: string; threadId?: string };
   /**
    * ACP session config option value (normalized for UI metadata consumers).
    */

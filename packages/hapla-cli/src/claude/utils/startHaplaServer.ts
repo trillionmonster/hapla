@@ -57,7 +57,7 @@ function createMcpServer(handler: (title: string) => Promise<{ success: boolean;
 
     mcp.registerTool('register_web_preview', {
         title: 'Register Development Preview',
-        description: 'Register a live HTTP(S) service reachable from this workbench. Reusing the same name updates its target while keeping the URL handle. Access is restricted to the current Hapla account. Present the returned relative URL as a Markdown link; Hapla resolves it using the actual browser host and port.',
+        description: 'Register a live HTTP(S) service reachable from this workbench. Reusing the same name updates its target while keeping the URL handle. New registrations are private to the current account. Updating a handle preserves its sharing scope; use Hapla proxy management to change sharing. Present the returned relative URL as a Markdown link; Hapla resolves it using the actual browser host and port.',
         inputSchema: { target: z.string().max(4096), name: z.string().min(1).max(100), handle: z.string().regex(/^[a-f0-9]{32}$/).optional() },
     }, async input => {
         try {

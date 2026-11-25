@@ -14,7 +14,7 @@ const fixtures = vi.hoisted(() => ({
     lifecycleState: undefined as string | undefined,
     fileCache: null as null | { content: string | null; diff: string | null; isBinary: boolean; cachedAt: number; size?: number; modified?: number },
     params: { id: 'file-screen-lifecycle', path: '' },
-    info: vi.fn(), chunk: vi.fn(), bash: vi.fn(), stream: vi.fn(), download: vi.fn(),
+    info: vi.fn(), chunk: vi.fn(), bash: vi.fn(), git: vi.fn(), stream: vi.fn(), download: vi.fn(),
     applyFileCache: vi.fn(),
     retain: vi.fn(() => () => {}),
 }));
@@ -45,6 +45,7 @@ vi.mock('@/sync/sync', () => ({ sync: { retainVisibleSessions: fixtures.retain }
 vi.mock('@/sync/ops', () => ({
     sessionFileDownloadInfo: fixtures.info, sessionFileDownloadChunk: fixtures.chunk, sessionBash: fixtures.bash,
 }));
+vi.mock('@/sync/gitWorkbench', () => ({ gitWorkbenchRpc: fixtures.git }));
 vi.mock('@/components/StyledText', () => ({ Text: 'Text' }));
 vi.mock('@/components/markdown/MarkdownView', () => ({ MarkdownView: 'MarkdownView' }));
 vi.mock('@/components/FileIcon', () => ({ FileIcon: 'FileIcon' }));
@@ -157,12 +158,12 @@ describe('FileScreen preview request lifecycle', () => {
 
     it('silently releases on blur, then reloads on focus without an old chunk or diff result', async () => {
         const oldChunk = deferred<ReturnType<typeof chunk>>(); fixtures.chunk.mockReturnValueOnce(oldChunk.promise);
-        const oldDiff = deferred<{ success: boolean; stdout: string }>(); fixtures.bash.mockReturnValueOnce(oldDiff.promise);
+        const oldDiff = deferred<{ text: string; nextOffset: null }>(); fixtures.git.mockReturnValueOnce(oldDiff.promise);
         await render();
         const diff = root.root.findAllByType('Pressable').find((item: any) => item.props.accessibilityLabel === '差异');
         await act(async () => { void diff.props.onPress(); });
         fixtures.focused = false; await render(); expect(root.toJSON()).toBeNull();
-        await act(async () => { oldChunk.resolve(chunk('STALE REPORT')); oldDiff.resolve({ success: true, stdout: 'STALE DIFF' }); });
+        await act(async () => { oldChunk.resolve(chunk('STALE REPORT')); oldDiff.resolve({ text: 'STALE DIFF', nextOffset: null }); });
         fixtures.focused = true; await render();
         expect(loading()).toBe(0); expect(text()).not.toContain('STALE');
         expect(text()).not.toContain('文件预览已释放');

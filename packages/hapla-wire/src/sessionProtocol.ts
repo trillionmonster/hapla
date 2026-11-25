@@ -14,6 +14,7 @@ export type AsyncUserInputQuestion = z.infer<typeof asyncUserInputQuestionSchema
 
 export const sessionTextEventSchema = z.object({
   t: z.literal('text'),
+  inputEdit: z.object({ messageId: z.string().min(1), revision: z.number().int().positive() }).optional(),
   text: z.string(),
   thinking: z.boolean().optional(),
   // Only protocol-provided, user-visible reasoning summaries may set this flag.

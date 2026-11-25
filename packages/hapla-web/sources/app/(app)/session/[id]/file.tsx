@@ -391,16 +391,16 @@ export default React.memo(function FileScreen() {
         setMode('diff'); setDiff(null);
         const generation = requestVersion.current;
         try {
-            const result = await sessionBash(params.id, { command: `git diff --no-ext-diff -- ${shellQuote(resolved.relativePath || '.')} | head -c 131072`, cwd: session.metadata.path });
+            const { gitWorkbenchRpc } = await import('@/sync/gitWorkbench');
+            const result = await gitWorkbenchRpc(params.id, machineId, session?.active === true, { operation: 'diff', directory: session.metadata.path, source: 'working', path: resolved.relativePath || undefined });
             if (generation !== requestVersion.current) return;
-            if (!result.success) throw new Error(result.error || '无法读取差异');
-            setDiff({ resourceKey, text: result.stdout });
+            setDiff({ resourceKey, text: (result.text ?? '') + (result.nextOffset !== null ? '\n… Open Changes to load the complete diff.' : '') });
             const existing = storage.getState().sessionFileCache[params.id]?.[filePath];
             storage.getState().applyFileCache(
                 params.id,
                 filePath,
                 currentPresentation?.text ?? existing?.content ?? null,
-                result.stdout,
+                result.text ?? null,
                 existing?.isBinary ?? false,
                 {
                     size: currentPresentation?.size ?? existing?.size,
@@ -465,6 +465,7 @@ export default React.memo(function FileScreen() {
                 {['html', 'htm'].includes(extension) && button('运行网页', () => router.push({ pathname: '/session/[id]/preview', params: { id: params.id, target: filePath } }))}
                 {!isMedia && kind !== 'binary' && button('源码', () => setMode('source'), mode === 'source')}
                 {!isMedia && kind !== 'binary' && button('差异', loadDiff, mode === 'diff')}
+                {button('全部变更', () => router.push(`/session/${params.id}/git`))}
                 {button('刷新', retryPreview, false, pendingPageKey === pageKey)}
             </View>
             {error && <View style={styles.notice}><Text style={{ color: theme.colors.textDestructive }}>{error}</Text>{button('重试', retryPreview)}</View>}

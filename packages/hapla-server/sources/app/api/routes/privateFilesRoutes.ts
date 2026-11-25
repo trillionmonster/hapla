@@ -14,6 +14,7 @@ import { localCloudFiles } from '@/storage/localCloudFiles';
 import { cloudFiles } from '@/storage/cloudFileDelivery';
 import { directFiles } from '@/storage/directFileDelivery';
 import { usesLocalFileDelivery } from '../utils/localFileDelivery';
+import { previewSessions, previewSessionCookie } from '@/app/preview/previewSessions';
 
 function secure(request: FastifyRequest): boolean {
     return request.protocol === 'https' || request.headers['x-forwarded-proto']?.toString().split(',')[0].trim() === 'https';
@@ -21,13 +22,15 @@ function secure(request: FastifyRequest): boolean {
 
 export function privateFilesRoutes(app: Fastify, access: MediaAccess) {
     app.post('/v1/account/media-access', { preHandler: app.authenticate }, async (request, reply) => {
+        const session = await previewSessions.ensure(request.userId, request.headers.cookie);
         return reply.header('Cache-Control', 'no-store')
-            .header('Set-Cookie', [access.issueCookie(request.userId, secure(request)), `hapla_preview_auth=${encodeURIComponent(request.headers.authorization!.slice(7))}; Path=/preview/; HttpOnly; SameSite=Strict${secure(request) ? '; Secure' : ''}`])
+            .header('Set-Cookie', [access.issueCookie(request.userId, secure(request)), `hapla_preview_auth=${encodeURIComponent(request.headers.authorization!.slice(7))}; Path=/preview/; HttpOnly; SameSite=Strict${secure(request) ? '; Secure' : ''}`, ...(session ? [previewSessionCookie(request.userId, session.id, secure(request))] : [])])
             .code(204).send();
     });
     app.delete('/v1/account/media-access', { preHandler: app.authenticate }, async (request, reply) => {
+        await previewSessions.revoke(request.userId, request.headers.cookie);
         return reply.header('Cache-Control', 'no-store')
-            .header('Set-Cookie', [access.clearCookie(secure(request)), `hapla_preview_auth=; Path=/preview/; HttpOnly; SameSite=Strict; Max-Age=0${secure(request) ? '; Secure' : ''}`])
+            .header('Set-Cookie', [access.clearCookie(secure(request)), `hapla_preview_auth=; Path=/preview/; HttpOnly; SameSite=Strict; Max-Age=0${secure(request) ? '; Secure' : ''}`, previewSessionCookie(request.userId, '', secure(request))])
             .code(204).send();
     });
 

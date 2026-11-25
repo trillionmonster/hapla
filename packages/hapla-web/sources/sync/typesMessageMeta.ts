@@ -21,6 +21,7 @@ export const MessageMetaSchema = z.object({
   codexFollowupMode: z.enum(['steer', 'queue', 'replace']).optional(),
     displayText: z.string().optional(), // Optional text to display in UI instead of actual message text
     branchId: z.string().optional(),
+    inputEdit: z.object({ messageId: z.string(), revision: z.number() }).optional(),
     streamId: z.string().optional(),
     turnId: z.string().optional(),
     reasoningSummary: z.boolean().optional(),

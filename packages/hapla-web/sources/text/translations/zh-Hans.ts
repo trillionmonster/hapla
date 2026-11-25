@@ -1,3 +1,4 @@
+import { gitWorkbenchCoreChinese } from '../gitWorkbenchCoreLabels';
 /**
  * Chinese (Simplified) translations for the Hapla app
  * Values can be:
@@ -17,6 +18,7 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 export const zhHans: TranslationStructure = {
+    gitWorkbench: gitWorkbenchCoreChinese,
     tabs: {
         // Tab navigation labels
         inbox: '收件箱',

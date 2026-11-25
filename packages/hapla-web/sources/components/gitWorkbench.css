@@ -1,0 +1,212 @@
+.hapla-git {
+    display: flex; flex-direction: column; height: 100%; min-height: 0;
+    color: var(--workspace-text); background: var(--git-panel); font-size: 13px;
+    line-height: 1.45; overflow: hidden; isolation: isolate;
+}
+.hapla-git *, .hapla-git *::before, .hapla-git *::after { box-sizing: border-box; }
+.hapla-git [hidden] { display: none !important; }
+.hapla-git button, .hapla-git input, .hapla-git textarea, .hapla-git select { font: inherit; color: inherit; }
+.hapla-git button { cursor: pointer; border: 0; background: transparent; }
+.hapla-git button:disabled { opacity: .45; cursor: not-allowed; }
+.hapla-git button, .hapla-git summary, .hapla-git input, .hapla-git textarea, .hapla-git select { -webkit-tap-highlight-color: transparent; }
+.hapla-git button, .hapla-git summary { transition: opacity 120ms; }
+.hapla-git :focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: -2px; }
+.hapla-git h1, .hapla-git h2, .hapla-git h3, .hapla-git p { margin: 0; }
+.hapla-git-header { display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 12px 22px; border-bottom: 1px solid var(--workspace-line); flex: none; }
+.hapla-git-heading { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.hapla-git h1 { font-size: 17px; font-weight: 600; letter-spacing: -.35px; white-space: nowrap; }
+.hapla-git-repository { font-size: 12px; color: var(--workspace-muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hapla-git-branch { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 200px; color: var(--workspace-muted); font: 11px var(--git-mono); background: var(--git-chrome); padding: 5px 8px; border: 1px solid var(--workspace-line); border-radius: 5px; }
+.hapla-git-branch > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hapla-git-header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+.hapla-git .hapla-git-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; flex-shrink: 0; border-radius: 5px; color: var(--workspace-muted); }
+.hapla-git .hapla-git-icon-button:hover:not(:disabled) { background: var(--git-hover); color: var(--workspace-text); }
+.hapla-git .hapla-git-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 32px; padding: 6px 10px; border: 1px solid var(--workspace-line); border-radius: 5px; background: var(--git-panel); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.hapla-git .hapla-git-button:hover:not(:disabled) { background: var(--git-hover); }
+.hapla-git .hapla-git-button--quiet { border-color: transparent; background: transparent; color: var(--workspace-muted); }
+.hapla-git .hapla-git-button--primary { color: var(--git-primary-text); background: var(--git-primary); border-color: transparent; }
+.hapla-git .hapla-git-button--primary:hover:not(:disabled) { background: var(--git-primary); filter: brightness(1.08); }
+.hapla-git .hapla-git-button--danger { color: var(--git-danger); background: var(--git-panel); }
+.hapla-git .hapla-git-button--danger:hover:not(:disabled) { background: var(--git-removed-bg); border-color: var(--git-danger); }
+.hapla-git-source { display: flex; align-items: stretch; gap: 8px; min-height: 45px; padding: 0 22px; border-bottom: 1px solid var(--workspace-line); overflow: auto; scrollbar-width: none; flex: none; }
+.hapla-git-source::-webkit-scrollbar { display: none; }
+.hapla-git-source > button { display: inline-flex; position: relative; align-items: center; gap: 7px; padding: 12px 10px; font-size: 12px; color: var(--workspace-muted); white-space: nowrap; flex-shrink: 0; }
+.hapla-git-source > button:hover { color: var(--workspace-text); background: var(--git-chrome); }
+.hapla-git-source > button[aria-pressed=true] { color: var(--git-accent); font-weight: 600; }
+.hapla-git-source > button[aria-pressed=true]::after { content: ''; position: absolute; bottom: 0; left: 8px; right: 8px; height: 2px; background: var(--git-accent); border-radius: 2px 2px 0 0; }
+.hapla-git-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 18px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 500; line-height: 1; background: var(--git-hover); color: var(--workspace-muted); }
+.hapla-git-notice { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 8px 22px; font-size: 12px; border-bottom: 1px solid var(--workspace-line); flex: none; }
+.hapla-git-notice > span { min-width: 0; overflow-wrap: anywhere; }
+.hapla-git-notice > button { margin-left: auto; }
+.hapla-git-error { color: var(--git-danger); background: var(--git-removed-bg); }
+.hapla-git-feedback { color: var(--git-accent); background: var(--git-selected); }
+.hapla-git-layout { display: grid; grid-template-columns: 258px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; grid-template-areas: 'files review' 'delivery review'; flex: 1; min-height: 0; }
+.hapla-git-sidebar { grid-area: files; min-height: 0; display: flex; flex-direction: column; background: var(--git-chrome); border-right: 1px solid var(--workspace-line); }
+.hapla-git-panel-heading { font-size: 12px; font-weight: 600; padding: 12px 12px 8px; flex: none; }
+.hapla-git-files-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 26px; text-align: left; padding: 0 4px; }
+.hapla-git-files-toggle .hapla-git-files-title { font-size: 12px; font-weight: 600; }
+.hapla-git-files-toggle .hapla-git-count { margin-left: auto; }
+.hapla-git-sidebar-body { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; padding-bottom: 12px; }
+.hapla-git-filter { display: flex; align-items: center; gap: 7px; margin: 0 12px 12px; padding: 0 8px; height: 30px; background: var(--git-panel); border: 1px solid var(--workspace-line); border-radius: 5px; color: var(--workspace-muted); flex: none; }
+.hapla-git .hapla-git-filter input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; font-size: 11px; color: var(--workspace-text); outline: 0; }
+.hapla-git-filter:focus-within { outline: 2px solid var(--workspace-focus); outline-offset: -1px; }
+.hapla-git input::placeholder, .hapla-git textarea::placeholder { color: var(--workspace-muted); opacity: 1; }
+.hapla-git-file-list { padding: 0 8px; }
+.hapla-git-all-files { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 33px; padding: 6px 8px; border-radius: 5px; text-align: left; font-size: 12px; }
+.hapla-git-all-files .hapla-git-count { margin-left: auto; }
+.hapla-git-all-files[aria-pressed=true] { color: var(--git-accent); background: var(--git-selected); }
+.hapla-git-file { display: flex; align-items: center; min-height: 35px; border-radius: 5px; margin-top: 2px; }
+.hapla-git-file:hover, .hapla-git-all-files:hover { background: var(--git-hover); }
+.hapla-git-file[data-selected=true] { background: var(--git-selected); }
+.hapla-git-file-select { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; min-height: 35px; text-align: left; padding: 6px 8px; }
+.hapla-git-file-select > :first-child { color: var(--workspace-muted); flex-shrink: 0; }
+.hapla-git-file-name { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.hapla-git-file-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.hapla-git-file-name small { color: var(--workspace-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.hapla-git-file-status { font: 10px var(--git-mono); color: var(--workspace-muted); }
+.hapla-git-file-status--A { color: var(--git-accent); }
+.hapla-git-file-status--D { color: var(--git-danger); }
+.hapla-git .hapla-git-file-action { width: 27px; height: 27px; margin-right: 3px; }
+.hapla-git-sidebar-empty { color: var(--workspace-muted); padding: 14px 8px; font-size: 11px; }
+.hapla-git-checkpoints { border-top: 1px solid var(--workspace-line); margin-top: 16px; padding: 0 8px; }
+.hapla-git summary { display: flex; align-items: center; gap: 8px; min-height: 44px; list-style: none; cursor: pointer; font-size: 12px; }
+.hapla-git summary::-webkit-details-marker { display: none; }
+.hapla-git summary > :last-child { margin-left: auto; }
+.hapla-git details[open] > summary > :last-child { transform: rotate(180deg); }
+.hapla-git-checkpoints summary { padding: 4px 8px; color: var(--workspace-muted); }
+.hapla-git-checkpoints summary .hapla-git-count { margin-left: 0; }
+.hapla-git .hapla-git-save-checkpoint { min-height: 29px; margin: 0 0 5px 4px; }
+.hapla-git-checkpoint { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 9px 8px; border-radius: 5px; text-align: left; }
+.hapla-git-checkpoint:hover { background: var(--git-hover); }
+.hapla-git-checkpoint[aria-pressed=true] { background: var(--git-selected); }
+.hapla-git-checkpoint-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--git-accent); margin-top: 5px; flex: none; }
+.hapla-git-checkpoint-dot--pending { background: var(--workspace-muted); }
+.hapla-git-checkpoint-dot--failed, .hapla-git-checkpoint-dot--interrupted { background: var(--git-danger); }
+.hapla-git-checkpoint > span:last-child { min-width: 0; flex: 1; }
+.hapla-git-checkpoint strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 500; }
+.hapla-git-checkpoint small { display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; color: var(--workspace-muted); font-size: 10px; }
+.hapla-git-review { grid-area: review; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--git-panel); }
+.hapla-git-revision-control { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 8px 18px; border-bottom: 1px solid var(--workspace-line); font-size: 12px; }
+.hapla-git-revision-control > span { color: var(--workspace-muted); flex: none; }
+.hapla-git input, .hapla-git textarea, .hapla-git select { border: 1px solid var(--workspace-line); border-radius: 5px; padding: 8px 10px; background: var(--git-panel); min-width: 0; }
+.hapla-git-revision-control input, .hapla-git-revision-control select { flex: 1; min-width: 0; padding: 5px 8px; max-width: 420px; font: 11px var(--git-mono); }
+.hapla-git-restore-bar { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--workspace-line); background: var(--git-chrome); }
+.hapla-git-restore-bar > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.hapla-git-restore-bar strong { font-size: 11px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hapla-git-restore-bar small { color: var(--workspace-muted); font-size: 10px; }
+.hapla-git-restore-bar .hapla-git-button { font-size: 11px; }
+.hapla-git-diff-heading { display: flex; align-items: center; gap: 9px; height: 43px; padding: 0 18px; background: var(--git-chrome); border-bottom: 1px solid var(--workspace-line); flex: none; }
+.hapla-git-diff-heading > :first-child { color: var(--workspace-muted); }
+.hapla-git-diff-heading strong { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.hapla-git-diff-stats { display: flex; align-items: center; gap: 10px; font: 11px var(--git-mono); }
+.hapla-git-diff-stats > :first-child { color: var(--git-accent); }
+.hapla-git-diff-stats > :last-child { color: var(--git-danger); }
+.hapla-git-diff-heading > :last-child { margin-left: auto; }
+.hapla-git-diff { margin: 0; padding: 0; min-width: 0; min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; background: var(--git-panel); font: 12px/24px var(--git-mono); tab-size: 4; }
+.hapla-git-diff-canvas { position: relative; width: 100%; }
+.hapla-git-diff-window { position: absolute; inset: 0 0 auto; }
+.hapla-git-line { display: grid; grid-template-columns: 43px 43px 24px minmax(0, 1fr); height: 24px; white-space: pre; width: 100%; }
+.hapla-git-line-number { color: var(--workspace-muted); text-align: right; padding-right: 9px; font-size: 10px; user-select: none; border-right: 1px solid var(--workspace-line); }
+.hapla-git-line-sign { color: var(--workspace-muted); text-align: center; user-select: none; }
+.hapla-git-line-code { padding-right: 24px; }
+.hapla-git-line--add { background: var(--git-added-bg); }
+.hapla-git-line--add .hapla-git-line-sign { color: var(--git-accent); }
+.hapla-git-line--remove { background: var(--git-removed-bg); }
+.hapla-git-line--remove .hapla-git-line-sign { color: var(--git-danger); }
+.hapla-git-line--hunk { background: var(--git-hunk-bg); color: var(--workspace-muted); font-size: 11px; }
+.hapla-git-line--hunk .hapla-git-line-code { grid-column: 3 / 5; }
+.hapla-git-line--hunk .hapla-git-line-sign { display: none; }
+.hapla-git-line--file { display: flex; align-items: center; gap: 9px; padding: 0 15px; background: var(--git-chrome); border-block: 1px solid var(--workspace-line); height: 24px; font-size: 11px; }
+.hapla-git-diff-file-icon { color: var(--workspace-muted); display: inline-flex; }
+.hapla-git-diff-filename { font-weight: 600; }
+.hapla-git-line--meta { color: var(--workspace-muted); font-size: 10px; }
+.hapla-git-raw { padding: 14px 18px; white-space: pre; }
+.hapla-git-diff-footer { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 4px 16px; border-top: 1px solid var(--workspace-line); color: var(--workspace-muted); font-size: 10px; flex: none; }
+.hapla-git-diff-footer > :nth-child(2) { margin-left: auto; font-family: var(--git-mono); font-size: 10px; }
+.hapla-git-diff-footer .hapla-git-button { font-size: 11px; min-height: 27px; padding: 3px 5px; }
+.hapla-git-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; flex: 1; padding: 32px; min-height: 180px; text-align: center; }
+.hapla-git-empty-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border: 1px solid var(--workspace-line); border-radius: 12px; color: var(--workspace-muted); background: var(--git-chrome); margin-bottom: 7px; }
+.hapla-git-empty h3 { font-size: 14px; font-weight: 500; }
+.hapla-git-empty p { font-size: 12px; line-height: 1.6; color: var(--workspace-muted); max-width: 280px; }
+.hapla-git-diff-skeleton { display: flex; flex: 1; flex-direction: column; gap: 12px; padding: 30px 30px 30px 110px; }
+.hapla-git-diff-skeleton > span { height: 9px; border-radius: 3px; background: var(--git-hover); animation: hapla-git-pulse 1.4s ease-in-out infinite alternate; }
+.hapla-git-delivery { grid-area: delivery; padding: 15px 16px 10px; background: var(--git-chrome); border-top: 1px solid var(--workspace-line); border-right: 1px solid var(--workspace-line); max-height: 55vh; overflow: auto; }
+.hapla-git-commit-form { display: flex; flex-direction: column; gap: 9px; }
+.hapla-git-commit-form > label { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; font-weight: 500; }
+.hapla-git-commit-form > label > span { color: var(--workspace-muted); font-size: 10px; font-weight: 400; }
+.hapla-git-commit-form textarea { height: 67px; min-height: 54px; max-height: 160px; resize: vertical; font-size: 12px; line-height: 1.5; }
+.hapla-git-commit-form .hapla-git-button { width: 100%; }
+.hapla-git-form-hint { color: var(--workspace-muted); font-size: 10px; line-height: 1.6; }
+.hapla-git-pr { margin-top: 15px; border-top: 1px solid var(--workspace-line); }
+.hapla-git-pr > summary { color: var(--workspace-muted); font-size: 11px; min-height: 38px; }
+.hapla-git-pr-form { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; }
+.hapla-git-pr-form label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; }
+.hapla-git-pr-form input, .hapla-git-pr-form textarea { width: 100%; font-size: 12px; }
+.hapla-git-pr-form textarea { min-height: 68px; resize: vertical; }
+.hapla-git .hapla-git-pr-status { justify-content: flex-start; padding-left: 0; font-size: 11px; gap: 6px; }
+.hapla-git-pr-link { display: flex; align-items: center; gap: 6px; color: var(--git-accent); font-size: 11px; text-decoration: none; padding: 8px 0; }
+.hapla-git-pr-link span { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.hapla-git-pr-link:hover { text-decoration: underline; }
+.hapla-git-check-result { display: flex; align-items: center; gap: 6px; color: var(--git-accent); font-size: 10px; padding: 4px 0; }
+.hapla-git-spinning { display: inline-flex; animation: hapla-git-spin 1s linear infinite; }
+@keyframes hapla-git-spin { to { transform: rotate(360deg); } }
+@keyframes hapla-git-pulse { to { opacity: .4; } }
+@media (max-width: 1270px) and (min-width: 1101px) {
+    .hapla-git-layout { grid-template-columns: 230px minmax(0, 1fr); }
+    .hapla-git-repository { display: none; }
+    .hapla-git-source { gap: 0; padding-inline: 12px; }
+    .hapla-git-source > button { gap: 5px; padding-inline: 8px; font-size: 11px; }
+}
+@media (max-width: 1100px) {
+    .hapla-git { overflow: auto; }
+    .hapla-git-header { min-height: 60px; padding: 8px 12px; gap: 8px; }
+    .hapla-git-repository { display: none; }
+    .hapla-git-branch { max-width: 150px; font-size: 10px; }
+    .hapla-git-layout { display: flex; flex-direction: column; overflow: visible; flex: none; }
+    .hapla-git-source { padding-inline: 10px; gap: 2px; }
+    .hapla-git-sidebar { flex: none; border-right: 0; border-bottom: 1px solid var(--workspace-line); }
+    .hapla-git-panel-heading { font-size: 12px; font-weight: 600; padding: 6px 12px; }
+    .hapla-git-files-toggle { min-height: 38px; }
+    .hapla-git-sidebar-body { max-height: 340px; flex: none; }
+    .hapla-git-file-select { min-height: 42px; }
+    .hapla-git-checkpoints { margin-top: 8px; }
+    .hapla-git-review { height: clamp(320px, 60dvh, 650px); flex: none; }
+    .hapla-git-delivery { max-height: none; overflow: visible; border-right: 0; padding: 20px 16px; }
+    .hapla-git-commit-form textarea { height: 74px; }
+    .hapla-git-commit-form .hapla-git-button { width: auto; align-self: flex-start; }
+    .hapla-git-pr { margin-top: 20px; }
+}
+@media (max-width: 600px) {
+    .hapla-git h1 { font-size: 16px; }
+    .hapla-git-heading { flex-shrink: 0; }
+    .hapla-git-branch { max-width: 110px; }
+    .hapla-git-header-actions { gap: 2px; }
+    .hapla-git-header-actions .hapla-git-button { width: 44px; height: 44px; min-height: 44px; padding: 0; }
+    .hapla-git-header-actions .hapla-git-button > span:last-child { display: none; }
+    .hapla-git .hapla-git-icon-button { width: 44px; height: 44px; }
+    .hapla-git-source > button { min-height: 44px; padding: 10px 9px; font-size: 11px; }
+    .hapla-git-source > button > :first-child { display: none; }
+    .hapla-git-source { min-height: 44px; }
+    .hapla-git-notice { padding: 9px 14px; font-size: 11px; }
+    .hapla-git .hapla-git-button { min-height: 44px; }
+    .hapla-git-panel-heading { padding-block: 3px; }
+    .hapla-git-files-toggle { min-height: 44px; }
+    .hapla-git-file { min-height: 44px; }
+    .hapla-git-file-select { min-height: 44px; }
+    .hapla-git .hapla-git-file-action { width: 44px; height: 44px; }
+    .hapla-git-checkpoint { padding-block: 12px; }
+    .hapla-git-checkpoint strong { font-size: 12px; }
+    .hapla-git-diff-heading { padding-inline: 12px; height: 42px; }
+    .hapla-git-diff-heading .hapla-git-icon-button { height: 34px; }
+    .hapla-git-diff-footer { padding-inline: 12px; flex-wrap: wrap; gap: 6px; min-height: 36px; }
+    .hapla-git-diff-footer .hapla-git-button { margin-left: auto; font-size: 11px; min-height: 38px; }
+    .hapla-git-line { grid-template-columns: 32px 32px 22px minmax(0, 1fr); }
+    .hapla-git-line-number { padding-right: 5px; font-size: 9px; }
+    .hapla-git-restore-bar { flex-wrap: wrap; padding: 10px 12px; }
+    .hapla-git-restore-bar > span { min-width: 200px; }
+    .hapla-git-restore-bar .hapla-git-button { width: 100%; }
+    .hapla-git-revision-control { padding-inline: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hapla-git *, .hapla-git *::before, .hapla-git *::after { animation: none !important; transition: none !important; }
+}

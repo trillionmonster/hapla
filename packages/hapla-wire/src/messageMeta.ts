@@ -3,7 +3,7 @@ import * as z from 'zod';
 
 export const MessageMetaSchema = z.object({
   sentFrom: z.string().optional(),
-  permissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'read-only', 'safe-yolo', 'yolo']).optional(),
+  permissionMode: z.enum(['default', 'dontAsk', 'acceptEdits', 'bypassPermissions', 'plan', 'read-only', 'safe-yolo', 'yolo']).optional(),
   model: z.string().nullable().optional(),
   effort: z.string().nullable().optional(),
   verbosity: z.enum(['low', 'medium', 'high']).nullable().optional(),

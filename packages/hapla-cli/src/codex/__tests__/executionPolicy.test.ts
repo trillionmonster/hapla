@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { resolveCodexExecutionPolicy } from '../executionPolicy';
 
 describe('resolveCodexExecutionPolicy', () => {
-    it('forces never + danger-full-access when sandbox is managed by Hapla', () => {
+    it('retains native approval inside the external sandbox', () => {
         const policy = resolveCodexExecutionPolicy('default', true);
 
         expect(policy).toEqual({
-            approvalPolicy: 'never',
-            sandbox: 'danger-full-access',
+            approvalPolicy: 'untrusted',
+            sandbox: 'workspace-write',
         });
     });
 
+    it('retains the explicit read-only boundary inside a managed sandbox',()=>{
+        expect(resolveCodexExecutionPolicy('read-only',true)).toEqual({approvalPolicy:'never',sandbox:'read-only'});
+    });
     it('maps codex default mode to untrusted + workspace-write without managed sandbox', () => {
         const policy = resolveCodexExecutionPolicy('default', false);
 

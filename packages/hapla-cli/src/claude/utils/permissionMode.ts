@@ -5,7 +5,7 @@ import type { PermissionMode } from '@/api/types';
 export type ClaudeSdkPermissionMode = NonNullable<QueryOptions['permissionMode']>;
 
 /**
- * Map any PermissionMode (7 modes) to a Claude-compatible mode (4 modes)
+ * Map shared permission modes to a Claude-compatible mode
  * This is the ONLY place where Codex modes are mapped to Claude equivalents.
  *
  * Mapping:
@@ -14,7 +14,7 @@ export type ClaudeSdkPermissionMode = NonNullable<QueryOptions['permissionMode']
  * - read-only → default (Claude doesn't support read-only)
  *
  * Claude modes pass through unchanged:
- * - default, acceptEdits, bypassPermissions, plan
+ * - default, dontAsk, acceptEdits, bypassPermissions, plan
  */
 export function mapToClaudeMode(mode: PermissionMode): ClaudeSdkPermissionMode {
     const codexToClaudeMap: Record<string, ClaudeSdkPermissionMode> = {
@@ -27,6 +27,7 @@ export function mapToClaudeMode(mode: PermissionMode): ClaudeSdkPermissionMode {
 
 const VALID_PERMISSION_MODES: readonly PermissionMode[] = [
     'default',
+    'dontAsk',
     'acceptEdits',
     'bypassPermissions',
     'plan',
@@ -88,15 +89,12 @@ export function resolveInitialClaudePermissionMode(
 }
 
 /**
- * Enforce sandbox permission policy for Claude.
- * When sandbox is enabled, we always force bypass permissions.
+ * Preserve the requested approval policy inside the outer sandbox.
  */
 export function applySandboxPermissionPolicy(
     mode: PermissionMode | undefined,
-    sandboxEnabled: boolean,
+    _sandboxEnabled: boolean,
 ): PermissionMode | undefined {
-    if (!sandboxEnabled) {
-        return mode;
-    }
-    return 'bypassPermissions';
+    // The outer sandbox limits reach; it must not expand the user's approval policy.
+    return mode;
 }

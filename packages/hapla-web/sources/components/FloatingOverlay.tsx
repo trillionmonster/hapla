@@ -18,7 +18,7 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     },
 }));
 
-interface FloatingOverlayProps {
+export interface FloatingOverlayProps {
     accessibilityLabel?: string;
     children: React.ReactNode;
     maxHeight?: number;

@@ -1,3 +1,4 @@
+import type { EffectiveSessionConfiguration } from '@hapla/wire';
 /**
  * Codex App Server Client — drives Codex via the v2 JSON-RPC protocol
  * (`codex app-server`), replacing the legacy MCP-based CodexMcpClient.
@@ -219,6 +220,9 @@ function normalizeRawFileChangeList(changes: unknown): LegacyPatchChanges | unde
 }
 
 export class CodexAppServerClient {
+    private checkpointHasHistory = false;
+    get isFreshThread(): boolean { return !this.checkpointHasHistory; }
+
     private executable: string;
     private readonly executableOverride?: string;
     private process: ChildProcess | null = null;
@@ -250,6 +254,29 @@ export class CodexAppServerClient {
     private _turnId: string | null = null;
     private threadSelection = 0;
     private resolvedModel: string | null = null;
+    private effective: EffectiveSessionConfiguration = {};
+    private configurationHandler: ((value: EffectiveSessionConfiguration) => void) | undefined;
+    private nativeDefaults: { model?: string; model_reasoning_effort?: ReasoningEffort; model_verbosity?: unknown } | undefined;
+    get effectiveConfiguration(): EffectiveSessionConfiguration { return { ...this.effective }; }
+    setConfigurationHandler(handler: (value: EffectiveSessionConfiguration) => void): void { this.configurationHandler = handler; }
+    private publishConfiguration(value: EffectiveSessionConfiguration): void {
+        this.effective = value;
+        this.configurationHandler?.({ ...value });
+    }
+    private snapshotConfiguration(result: any): void {
+        const sandbox = typeof result.sandbox === 'string' ? result.sandbox : result.sandbox?.type;
+        const permissionMode = sandbox === 'readOnly' || sandbox === 'read-only' ? 'read-only'
+            : sandbox === 'dangerFullAccess' || sandbox === 'danger-full-access' ? 'yolo'
+            : result.approvalPolicy === 'on-request' ? 'safe-yolo' : result.approvalPolicy === 'untrusted' ? 'default' : undefined;
+        this.publishConfiguration({ model: result.model, effort: result.reasoningEffort ?? null, permissionMode, threadId: result.thread.id });
+    }
+    private async configuredDefaults() {
+        if (!this.nativeDefaults) {
+            const result = await this.request('config/read', { includeLayers: false, cwd: this.threadDefaults?.cwd ?? process.cwd() }) as { config?: { model?: string; model_reasoning_effort?: ReasoningEffort; model_verbosity?: unknown } };
+            this.nativeDefaults = result.config ?? {};
+        }
+        return this.nativeDefaults!;
+    }
     private defaultEffort: ReasoningEffort | null = null;
     private defaultEffortModel: string | null = null;
     private modelDefaultEfforts = new Map<string, ReasoningEffort>();
@@ -1230,9 +1257,11 @@ export class CodexAppServerClient {
         const result = await this.request('thread/start', params) as NewConversationResponse;
         if (selection !== this.threadSelection) throw new Error('Ignoring stale Codex thread/start response');
         this.resolvedModel = result.model;
+        this.snapshotConfiguration(result);
         if (this.defaultEffortModel === null) this.defaultEffortModel = result.model;
         if (this.defaultEffort === null && 'reasoningEffort' in result && typeof result.reasoningEffort === 'string') this.defaultEffort = result.reasoningEffort;
         this._threadId = result.thread.id;
+        this.checkpointHasHistory = false;
         this._turnId = null;
         this.appliedVerbosity = opts.verbosity;
         this.applyThreadSnapshot(result.thread);
@@ -1274,10 +1303,12 @@ export class CodexAppServerClient {
         const result = await this.request('thread/resume', params) as ResumeConversationResponse;
         if (selection !== this.threadSelection) throw new Error('Ignoring stale Codex thread/resume response');
         this.resolvedModel = result.model;
+        this.snapshotConfiguration(result);
         if (this.defaultEffortModel === null) this.defaultEffortModel = result.model;
         this.appliedVerbosity = undefined;
         if (this.defaultEffort === null && 'reasoningEffort' in result && typeof result.reasoningEffort === 'string') this.defaultEffort = result.reasoningEffort;
         this._threadId = result.thread.id;
+        this.checkpointHasHistory = true;
         this._turnId = null;
         this.applyThreadSnapshot(result.thread);
         this.rememberThreadDefaults({
@@ -1310,13 +1341,19 @@ export class CodexAppServerClient {
             lastTurnId: opts?.lastTurnId ?? null,
             model: opts?.model ?? defaults.model ?? null,
             cwd: opts?.cwd ?? defaults.cwd ?? process.cwd(),
+            approvalPolicy: defaults.approvalPolicy ?? null,
+            sandbox: defaults.sandbox ?? null,
+            config: this.buildThreadConfig(defaults.mcpServers),
+            persistExtendedHistory: true,
         }) as import('./codexAppServerTypes').ThreadForkResponse;
         if (selection !== this.threadSelection) throw new Error('Ignoring stale Codex thread/fork response');
         this.resolvedModel = result.model;
+        this.snapshotConfiguration(result);
         if (this.defaultEffortModel === null) this.defaultEffortModel = result.model;
         this.appliedVerbosity = undefined;
         if (this.defaultEffort === null && 'reasoningEffort' in result && typeof result.reasoningEffort === 'string') this.defaultEffort = result.reasoningEffort;
         this._threadId = result.thread.id;
+        this.checkpointHasHistory = true;
         this._turnId = null;
         this.applyThreadSnapshot(result.thread);
         this.rememberThreadDefaults({ ...defaults, model: opts?.model ?? defaults.model, cwd: opts?.cwd ?? defaults.cwd });
@@ -1520,7 +1557,7 @@ export class CodexAppServerClient {
      * Returns when task_complete or turn_aborted is received.
      */
     async sendTurnContent(input: InputItem[], opts?: {
-        model?: string;
+        model?: string | null;
         cwd?: string;
         approvalPolicy?: ApprovalPolicy;
         sandbox?: SandboxMode;
@@ -1544,16 +1581,21 @@ export class CodexAppServerClient {
         };
         if (opts?.cwd) params.cwd = opts.cwd;
         if (opts?.approvalPolicy) params.approvalPolicy = opts.approvalPolicy;
-        if (opts?.model) params.model = opts.model;
-        const selectedModel = opts?.model || this.resolvedModel;
+        let selectedModel = opts?.model ?? this.resolvedModel;
+        if (opts?.model === null) {
+            const defaults = await this.configuredDefaults();
+            selectedModel = defaults.model ?? (await this.listModels()).find(model => model.isDefault)?.model ?? null;
+            if (!selectedModel) throw new Error('原生 CLI 没有返回默认模型，请选择明确的模型');
+        }
+        if (opts?.model !== undefined && selectedModel) params.model = selectedModel;
         const baselineEffort = selectedModel && selectedModel !== this.defaultEffortModel
             ? this.modelDefaultEfforts.get(selectedModel) ?? null : this.defaultEffort;
-        if (opts?.effort !== undefined) params.effort = opts.effort ?? baselineEffort;
+        if (opts?.effort !== undefined) params.effort = opts.effort ?? (await this.configuredDefaults()).model_reasoning_effort ?? baselineEffort;
         if (opts?.serviceTier !== undefined) params.serviceTier = opts.serviceTier;
-        if (opts?.collaborationMode && (opts.model || this.resolvedModel)) {
+        if (opts?.collaborationMode && selectedModel) {
             params.collaborationMode = { mode: opts.collaborationMode, settings: {
-                model: opts.model || this.resolvedModel,
-                reasoning_effort: opts.effort ?? baselineEffort,
+                model: selectedModel,
+                reasoning_effort: params.effort ?? (opts?.model !== undefined ? baselineEffort : this.effective.effort) ?? baselineEffort,
                 developer_instructions: null,
             } };
         }
@@ -1602,9 +1644,18 @@ export class CodexAppServerClient {
         this.turnStartId = startId;
         this.emitEvent({ type: 'codex_turn_starting', startId, thread_id: this._threadId });
         try {
+            this.checkpointHasHistory = true;
             const result = await this.request('turn/start', params) as { turn?: { id?: string | null } };
             if (this._threadId !== params.threadId) throw new Error('Ignoring a turn/start response for a previous thread');
-            if (opts?.model) this.resolvedModel = opts.model;
+            if (selectedModel) this.resolvedModel = selectedModel;
+            this.publishConfiguration({ ...this.effective, model: selectedModel,
+                ...(opts?.effort !== undefined ? { effort: params.effort as ReasoningEffort | null } : selectedModel !== this.effective.model ? { effort: null } : {}),
+                ...(opts?.sandbox ? { permissionMode: opts.sandbox === 'read-only' ? 'read-only' : opts.sandbox === 'danger-full-access' ? 'yolo' : opts.approvalPolicy === 'on-request' ? 'safe-yolo' : 'default' } as const : {}),
+                ...(opts?.serviceTier !== undefined ? { serviceTier: opts.serviceTier } : {}),
+                ...(opts?.collaborationMode !== undefined ? { collaborationMode: opts.collaborationMode } : {}),
+                ...(opts?.verbosity !== undefined ? { verbosity: opts.verbosity } : {}),
+                threadId: this._threadId!, turnId: typeof result.turn?.id === 'string' ? result.turn.id : undefined,
+            });
             const turnId = result?.turn?.id;
             if (typeof turnId === 'string' && turnId.length > 0 && !this.completedTurnIds.has(turnId)) {
                 const alreadyStarted = this._turnId === turnId;
@@ -1630,7 +1681,7 @@ export class CodexAppServerClient {
     }
 
     async sendTurn(prompt: string, opts?: {
-        model?: string;
+        model?: string | null;
         cwd?: string;
         approvalPolicy?: ApprovalPolicy;
         sandbox?: SandboxMode;
@@ -1666,7 +1717,7 @@ export class CodexAppServerClient {
     }
 
     async sendTurnAndWait(prompt: string, opts?: {
-        model?: string; cwd?: string; approvalPolicy?: ApprovalPolicy; sandbox?: SandboxMode;
+        model?: string | null; cwd?: string; approvalPolicy?: ApprovalPolicy; sandbox?: SandboxMode;
         networkAccess?: boolean; effort?: ReasoningEffort | null; turnTimeoutMs?: number;
         verbosity?: 'low' | 'medium' | 'high' | null; serviceTier?: string | null; collaborationMode?: 'default' | 'plan';
     }): Promise<{ aborted: boolean }> {
@@ -1674,7 +1725,7 @@ export class CodexAppServerClient {
     }
 
     async sendTurnContentAndWait(input: InputItem[], opts?: {
-        model?: string; cwd?: string; approvalPolicy?: ApprovalPolicy; sandbox?: SandboxMode;
+        model?: string | null; cwd?: string; approvalPolicy?: ApprovalPolicy; sandbox?: SandboxMode;
         networkAccess?: boolean; effort?: ReasoningEffort | null; turnTimeoutMs?: number;
         verbosity?: 'low' | 'medium' | 'high' | null; serviceTier?: string | null; collaborationMode?: 'default' | 'plan';
     }): Promise<{ aborted: boolean }> {

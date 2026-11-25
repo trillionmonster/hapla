@@ -125,6 +125,24 @@ Docker 执行器自带 Codex。安装 Claude Code 时，在自动生成的执行
 
 你也可以在对话里试用带界面的 Skill。**Character composer** 示例用 MCP 应用为 Codex Skill 提供图片参考选择器，并把确认后的选择传给下一轮助手。[可运行的 Character composer 示例](../../examples/interactive-skills/character-composer/README.md) · [交互式 Skill](../interactive-skills.md)
 
+### 审阅代码变更
+
+打开 **Coder → Changes**，查看工作区、暂存区、分支、提交和轮次差异，完成暂存、提交、推送，以及 GitHub 草稿 PR 与检查状态查看。Codex 检查点可在独占 worktree 中一起恢复文件和对话。工作台支持浅色、深色、手机布局及大差异浏览，并可查看完整原始补丁。[编码工作台](../coding-workbench.md)
+
+![Coder Changes 的文件列表、完整代码差异、Git 操作和 Codex 检查点](../assets/coding-workbench.png)
+
+*截图来自开发验收，使用虚构仓库和本地助手夹具。*
+
+### 换端与任务中的追问
+
+模型、思考深度、权限和追问行为在 Normal 与 Coder 中共用，已配对浏览器会同步会话设置；换到手机继续时保留原选择。控件区分下一轮设置和助手当前实际采用的配置。
+
+Codex 工作时可选择 **Queue** 排队、**Steer** 引导当前轮次，或用 **BTW** 发起只读旁问。在输入历史中可修改排队文字。发送失败会保留草稿，刷新后仍可使用同一消息 ID 重试；分支校验阻止排队消息在另一分支执行。[追问与恢复说明](../web-interaction-features.md)
+
+### 管理开发预览
+
+通过预览管理器重新打开已注册的本地应用，选择仅自己、全站已登录用户或公网凭密钥访问。共享应用运行在管理员配置的独立预览来源，可撤销访问或重置密钥。[预览配置](../configuration.md)
+
 ### 设置默认模型
 
 进入 **Settings → New session defaults**（设置 → 新会话默认值）。选择 **Codex** 或 **Claude Code** 后设置 **Model**、**Thinking depth** 和 **Permissions**。Codex 的响应速度选项取决于模型能力。选择 **Environment default** 会沿用 CLI 的模型设置。模型列表由已配对的机器提供，每个会话也可以单独调整。
@@ -135,6 +153,8 @@ Docker 执行器自带 Codex。安装 Claude Code 时，在自动生成的执行
 
 - **Hapla 使用的 Codex。** 打开 **Machines → 目标机器 → Codex CLI**，选择 **更新 CLI**。Hapla 会在该机器上安装托管版本并刷新模型列表。新启动的 Codex 进程使用更新后的版本，运行中的进程继续使用原版本。只需同步模型时使用 **刷新模型与档位**。网页安装支持 Linux 和 macOS，Windows 上请使用原安装渠道的包管理器。[Codex CLI 更新](../codex-cli-update.md)
 - **从源码构建的 Hapla CLI。** 在仓库中运行 `git pull --ff-only` 和 `pnpm install --frozen-lockfile`。使用构建产物时再执行 `pnpm --filter ./packages/hapla-cli build`，并在合适时重启守护进程。使用 Docker 执行器时，拉取改动后为该执行器重跑 `worker-up`。[CLI 命令](../../packages/hapla-cli/README.md)
+
+升级已有部署时，应配套更新 Web、中继和执行器以使用共享会话设置与恢复协议。保留原服务端密钥、各执行器登录和工作区，并在中继停止后冷备数据库。执行器容器重启会结束助手进程；执行器就绪后，按保存的会话 ID 恢复原本在线的对话。[更新与隔离说明](../environment-isolation.md#更新停止与恢复)
 
 ### 继续会话
 

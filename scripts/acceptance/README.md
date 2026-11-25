@@ -9,6 +9,10 @@ send messages, access private credentials, or consume provider quota.
 | --- | --- |
 | `web-smoke.mjs` | Browser navigation, responsive layout, media, and interaction checks; also exposed as `pnpm web:smoke` |
 | `frontend-interactions.mts` | Real Codex browser workflows: composer, steering, queue, BTW, stop/replace, branches, terminal, settings, history, freshness, proxy ownership and logout |
+| `preview-manager.mts` | Proxy rule creation/editing, fixed browser URLs, another account's read-only global share, public key access, rotation/revocation, origin isolation, logout, actual Nginx, SSE and WebSockets |
+| `first-question.mts` | First-prompt paste and file selection, failed upload retention, retry into the same session, a real Codex image answer, phone newline and IME confirmation |
+| `session-state.mts` | Fresh-device execution settings, concurrent field sync, branch isolation, durable queue edits, failed POST retention and same-ID retry with real Codex/local Responses |
+| `session-state-native.mts` | Native model/effort default reset and branch model retention using the local Responses fixture |
 | `session-cache-smoke.mjs` | Synthetic browser fixture using the actual sync/store/reducer code |
 | `session-cache-production-smoke.mjs` | Production UI/cache behavior with an explicitly prepared test account |
 | `reasoning-summary-production-smoke.mjs` | Real reasoning-output UI acceptance |
@@ -107,3 +111,95 @@ for newly loaded entries or the end marker rather than a fixed delay.
 Engine/device emulation does not establish physical Android/iOS behavior. It
 does not launch the actual Safari app, open a real operating-system keyboard,
 exercise native Chinese IMEs, or validate the long-press system paste menu.
+
+### Proxy manager and first-question regressions
+
+The two focused scripts above use the same Docker/stack and private credential
+guards. `first-question.mts` consumes real model quota; it creates an image fixture
+in the browser, simulates a paste event, injects one failed upload, retries through
+the UI and requires a completed native Codex turn with the image's text. The
+clipboard event and IME events are browser simulations, not operating-system tests.
+`PROFILE=desktop`, `android` and `iphone` select desktop Chromium, touch Chromium
+and touch WebKit respectively. Keep a separate output directory per profile.
+
+For the proxy script, use real dev Nginx and a per-handle hostname template on the
+dev server, such as `{handle}.preview.localhost`. Point
+`HAPLA_ACCEPTANCE_WEB_URL` at the main dev browser origin. Chromium accepts
+`HAPLA_PREVIEW_TEST_RESOLVER` host mapping rules. WebKit uses ordinary dev DNS.
+For `*.localhost`, WebKit resolves to the CLI container's loopback even when an
+`/etc/hosts` override exists; use an HTTP(S) forwarder inside that container from
+loopback to the real dev Nginx, preserving Host and the external protocol/port.
+These are test-container settings, not host or
+production DNS changes. All rule/key mutations use the browser UI. Direct API
+calls are account fixtures, independent state reads, negative authorization
+checks and fixture cleanup. The proxy workflow also calls the actual STDIO MCP
+bridge to verify that an agent update retains sharing, rejects a now-stale UI
+revision without losing its draft, and logs out the second account to invalidate
+its isolated-origin grant and existing streams. Exposed shared entries must omit target/workbench configuration.
+
+Recordings, screenshots and action logs stay in ignored evidence directories.
+Share keys are masked in the manager by default. Do not publish evidence that
+reveals a live key or credentials. Rebuild Web with an empty `HAPLA_SERVER_URL`
+and `EXPO_PUBLIC_HAPLA_SERVER_URL` when testing same-origin browser routing;
+the CLI container's internal `http://server:3005` address is for the daemon only.
+
+## Coding workbench regression
+
+`coding-workbench.mts` exercises the actual Web, relay, daemon, Git repositories,
+and pinned native Codex App Server. A deterministic local Responses service
+supplies model replies and tool calls; it requires no provider login or paid
+model requests. PR creation/check display use a fixture `gh` executable rather
+than writing to a live code host. Neither fixture replaces Hapla's production
+RPC handlers or its real Git commands.
+
+Use `deploy/Dockerfile.dev` and `scripts/acceptance/compose.coding.yml` with project
+name exactly `dev-hapla`. Check the ports and resource ownership first; never
+reuse online account or workspace data. Keep a private env file with
+`HAPLA_MASTER_SECRET`, `CODEX_VERSION` from `codexProtocolSnapshot.json`, and optional
+free `CODING_WEB_PORT`/`CODING_SERVER_PORT` values (defaults 23345/24005). On a host
+with exhausted Docker address pools, add a private Compose override selecting an
+unused subnet. Keep the complete Compose file list in every command.
+
+Start `coding-cli`, install dependencies and build inside it. Export Web with
+`env -u HAPLA_SERVER_URL pnpm web:build` so the browser uses its own origin
+instead of the Docker-only Server address. Then start
+`coding-server` and `coding-web`. Inside the runner, execute:
+
+```bash
+HAPLA_ACCEPTANCE_STACK=dev-hapla PROFILE=desktop \
+HAPLA_ACCEPTANCE_OUTPUT=/repo/artifacts/coding-browser/desktop \
+node_modules/.bin/tsx --tsconfig packages/hapla-cli/tsconfig.json \
+  scripts/acceptance/coding-workbench.mts
+```
+
+Run `desktop`, `android`, and `iphone` sequentially with separate output paths.
+The suite checks light/dark theme changes, page width, code visibility in the
+first mobile viewport, full paginated UTF-8 text, and bounded formatted diff rows
+as well as the Git and native conversation workflows.
+These are Chromium desktop/Android and WebKit/iPhone emulations, not physical
+phone or system-keyboard validation. `CHROMIUM_PATH` can select an installed
+Chromium; otherwise the development image uses Playwright's bundled browser.
+The script creates its own synthetic account, credential store, repository and
+local bare remote in the isolated runner. Use a dedicated runner: it intentionally
+writes that runner's agent fixture config and Hapla credentials. It never copies
+a personal login. Preserve screenshots, video and `actions.ndjson` in ignored
+artifacts. The CI workflow `coding-browser.yml` runs the same sequence.
+
+## Conversation state regressions
+
+Run `session-state.mts` and `session-state-native.mts` inside the verified
+`dev-hapla` CLI container after builds have completed. Do not run a CLI build or
+unit-test global setup concurrently with browser acceptance: they replace the
+CLI output directory. Both scripts create synthetic credentials and use only the
+local Responses transport; no personal authentication or paid provider is needed.
+Set unique test-only `HAPLA_HOME_DIR` and `CODEX_HOME` paths per invocation,
+`HAPLA_ACCEPTANCE_STACK=dev-hapla`, `HAPLA_SERVER_URL=http://server:3005`, and
+`HAPLA_ACCEPTANCE_OUTPUT` under ignored `artifacts/`. The browser script also uses
+`HAPLA_ACCEPTANCE_WEB_URL` (default `http://web:8080`) and `PROFILE=desktop`,
+`android` or `iphone`. Android uses Chromium touch emulation and iPhone uses
+Playwright WebKit; these are engine/device simulations, not physical devices.
+Each browser run records actions, screenshots, video and an explicit result.
+The same workflow checks manual resume and Web/daemon continuation, including a
+failed POST carried to a replacement runtime with its original submission ID.
+Phone runs also assert landscape settings bounds, operate the first setting
+inside the scrollable panel and capture the dark variant.

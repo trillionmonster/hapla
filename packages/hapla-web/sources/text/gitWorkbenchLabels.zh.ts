@@ -1,0 +1,22 @@
+import type { gitWorkbenchEnglish } from './gitWorkbenchLabels';
+export const gitWorkbenchChinese: typeof gitWorkbenchEnglish = {
+    title: '变更', working: '未暂存与新增', staged: '已暂存', branch: '对比基线', commit: '提交', turn: '轮次',
+    refresh: '刷新', files: '变更文件', noFiles: '当前视图没有变更文件', stage: '暂存', unstage: '取消暂存',
+    commitMessage: '提交说明', commitAction: '提交已暂存变更', push: '推送分支', pushConfirm: '将当前分支推送到 origin？',
+    prTitle: '拉取请求标题', prBody: '拉取请求说明', prCreate: '创建草稿 PR', prConfirm: '创建草稿拉取请求？',
+    prStatus: '读取 PR 与检查结果', base: '基线分支', checkpoints: '检查点', checkpointCreate: '保存检查点',
+    restore: '恢复文件与对话', restoreConfirm: '恢复到此检查点之前的文件和对话？后续文件修改将被替换，当前对话会作为原分支保留。',
+    more: '继续加载差异', emptyDiff: '当前视图没有变更', diff: '差异', allFiles: '全部文件', busy: '处理中…',
+    retry: '重试', saved: '已保存', review: '审阅变更', restoreUnavailable: '文件与对话恢复需要空闲的 Codex 会话，并使用独立 Worktree。',
+    back: '返回对话', filter: '筛选文件', noMatches: '没有匹配的文件',
+    stagedHint: '先暂存需要包含在提交中的文件。', commitPlaceholder: '描述本次修改…',
+    filesChanged: '个文件变更', stagedFiles: '个已暂存', fileAdded: '新增', fileModified: '修改', fileDeleted: '删除', fileRenamed: '重命名',
+    raw: '原始补丁', formatted: '格式化差异', loaded: '已加载', chooseTurn: '选择检查点，查看该轮修改。',
+    errorTitle: '差异加载失败', errorHint: '请检查连接后刷新重试。',
+    cleanTitle: '暂无可审阅的变更', cleanHint: '当前视图的代码变更会显示在这里。',
+    noCheckpoints: '下次 Codex 执行后会在这里生成检查点。',
+    statusComplete: '已完成', statusPending: '进行中', statusInterrupted: '已中断', statusFailed: '失败', statusManual: '已保存',
+    prHint: '分支准备就绪后，可创建草稿 PR 进行审阅。',
+    delivery: '提交与交付',
+    contextUnknown: ({ tokens }: { tokens: string }) => `${tokens} tokens · 容量未知`,
+};

@@ -131,6 +131,6 @@ describe('modelModeOptions', () => {
         expect(resolveModelCatalog('codex', undefined, stale)).toEqual(stale.models);
         expect(resolveModelCatalog('codex', {
             cliCapabilities: { codex: { models: [] } }, codexModels: legacy,
-        } as any, stale)).toEqual([]);
+        } as any, stale)).toEqual(legacy);
     });
 });

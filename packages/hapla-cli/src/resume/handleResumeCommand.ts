@@ -1,3 +1,4 @@
+import { continuationEnvironment, readRuntimeLaunchSpec } from './runtimeLaunchSpec';
 import { existsSync } from 'node:fs';
 
 import type { Metadata } from '@/api/types';
@@ -8,6 +9,7 @@ import { resolveHaplaSession, type ResumableHaplaSession } from './resolveHaplaS
 export type ResumeLaunch = {
     cwd: string;
     args: string[];
+    env?: NodeJS.ProcessEnv;
 };
 
 export type ResumeLaunchOptions = {
@@ -54,18 +56,20 @@ function resolveFlavor(metadata: Metadata): 'codex' | 'claude' | null {
 export function buildResumeLaunch(session: ResumableHaplaSession, options: ResumeLaunchOptions = {}): ResumeLaunch {
     const { metadata } = session;
     const flavor = resolveFlavor(metadata);
+    const spec = metadata.launchSpecId ? readRuntimeLaunchSpec(metadata.launchSpecId) : undefined;
 
     if (flavor === 'codex') {
         if (!metadata.codexThreadId) {
             throw new Error(`Hapla session ${session.id} is missing its Codex thread ID.`);
         }
-        const args = ['codex', '--resume', metadata.codexThreadId];
+        const args = ['codex', ...(spec?.args ?? []), ...(spec?.noSandbox ? ['--no-sandbox'] : []), '--resume', metadata.codexThreadId];
         if (options.startedBy) {
             args.push('--started-by', options.startedBy);
         }
         return {
             cwd: metadata.path,
             args,
+            env: continuationEnvironment(session),
         };
     }
 
@@ -73,7 +77,7 @@ export function buildResumeLaunch(session: ResumableHaplaSession, options: Resum
         if (!metadata.claudeSessionId) {
             throw new Error(`Hapla session ${session.id} is missing its Claude session ID.`);
         }
-        const args = ['claude'];
+        const args = ['claude', ...(spec?.args ?? []), ...(spec?.noSandbox ? ['--no-sandbox'] : [])];
         if (options.claudeStartingMode) {
             args.push('--hapla-starting-mode', options.claudeStartingMode);
         }
@@ -84,6 +88,7 @@ export function buildResumeLaunch(session: ResumableHaplaSession, options: Resum
         return {
             cwd: metadata.path,
             args,
+            env: continuationEnvironment(session),
         };
     }
 
@@ -111,14 +116,15 @@ export function buildTransparentContinuationLaunch(
         return buildResumeLaunch(session, options);
     }
 
-    const args: string[] = [flavor];
+    const spec = session.metadata.launchSpecId ? readRuntimeLaunchSpec(session.metadata.launchSpecId) : undefined;
+    const args: string[] = [flavor, ...(spec?.args ?? []), ...(spec?.noSandbox ? ['--no-sandbox'] : [])];
     if (options.claudeStartingMode) {
         args.push('--hapla-starting-mode', options.claudeStartingMode);
     }
     if (options.startedBy) {
         args.push('--started-by', options.startedBy);
     }
-    return { cwd: session.metadata.path, args };
+    return { cwd: session.metadata.path, args, env: continuationEnvironment(session) };
 }
 
 export function formatResumeHelp(): string {
@@ -141,7 +147,7 @@ function spawnResumeChild(launch: ResumeLaunch, conversationId: string): Promise
     return new Promise((resolve, reject) => {
         const child = spawnHaplaCLI(launch.args, {
             cwd: launch.cwd,
-            env: { ...process.env, HAPLA_CONVERSATION_ID: conversationId },
+            env: { ...process.env, ...launch.env, HAPLA_CONVERSATION_ID: conversationId },
             stdio: 'inherit',
         });
 

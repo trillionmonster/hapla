@@ -18,5 +18,5 @@ export async function registerDevelopmentPreview(context: { token: string; machi
     });
     const result = await response.json() as PreviewRegistration & { error?: string };
     if (!response.ok) throw new Error(result.error ?? `代理注册失败 (${response.status})`);
-    return { handle: result.handle, name: result.name, url: `/preview/${result.handle}/`, target: result.target, access: 'current-account-only' };
+    return { handle: result.handle, name: result.name, url: `/preview/${result.handle}/`, target: result.target, access: result.access ?? 'private' };
 }

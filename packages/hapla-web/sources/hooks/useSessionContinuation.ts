@@ -20,6 +20,7 @@ export function useSessionContinuation(session: Session | null) {
         // Legacy rows are grouped once while their encrypted relationship is
         // available in the browser. Every replacement runtime then inherits a
         // durable server-side conversation id.
+        await sync.flushSessionConfiguration(latest.session.id);
         const identity = await sync.ensureConversationIdentity(latest.session.id);
         const session = latest.session.conversationId === identity.conversationId
             ? latest.session
@@ -31,18 +32,8 @@ export function useSessionContinuation(session: Session | null) {
             resumeSession: machineResumeSession,
             refreshSessions: () => sync.refreshSessions(),
             getSession: (sessionId) => storage.getState().sessions[sessionId],
-            copySessionSettings: (source, targetSessionId) => {
-                if (source.permissionMode) {
-                    storage.getState().updateSessionPermissionMode(targetSessionId, source.permissionMode);
-                }
-                if (source.modelMode) {
-                    storage.getState().updateSessionModelMode(targetSessionId, source.modelMode);
-                }
-                if (source.codexPreferences) storage.getState().updateSessionCodexPreferences(targetSessionId, source.codexPreferences);
-                if (source.effortLevel) {
-                    storage.getState().updateSessionEffortLevel(targetSessionId, source.effortLevel);
-                }
-            },
+            // Configuration is owned by the stable root, not copied from a stale device snapshot.
+            copySessionSettings: () => {},
             wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
         }, options);
     }, []);

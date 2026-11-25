@@ -81,13 +81,13 @@ describe('resolveInitialClaudePermissionMode', () => {
 });
 
 describe('applySandboxPermissionPolicy', () => {
-    it('forces bypassPermissions when sandbox is enabled', () => {
-        expect(applySandboxPermissionPolicy('default', true)).toBe('bypassPermissions');
-        expect(applySandboxPermissionPolicy(undefined, true)).toBe('bypassPermissions');
+    it('preserves requested approval inside the managed sandbox', () => {
+        expect(applySandboxPermissionPolicy('default', true)).toBe('default');
+        expect(applySandboxPermissionPolicy(undefined, true)).toBeUndefined();
     });
 
-    it('forces bypassPermissions for plan mode when sandbox is enabled', () => {
-        expect(applySandboxPermissionPolicy('plan', true)).toBe('bypassPermissions');
+    it('preserves Plan mode inside the managed sandbox', () => {
+        expect(applySandboxPermissionPolicy('plan', true)).toBe('plan');
     });
 
     it('returns original mode when sandbox is disabled', () => {

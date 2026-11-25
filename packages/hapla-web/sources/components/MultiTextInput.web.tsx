@@ -40,6 +40,7 @@ interface MultiTextInputProps {
     placeholder?: string;
     accessibilityLabel?: string;
     minHeight?: number;
+    editable?: boolean;
     maxHeight?: number;
     lineHeight?: number;
     paddingTop?: number;
@@ -60,6 +61,7 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
         placeholder,
         accessibilityLabel,
         minHeight,
+        editable = true,
         maxHeight = 120,
         lineHeight = theme.typography.body.lineHeight,
         onKeyPress,
@@ -70,13 +72,15 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
     
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
+    const composing = React.useRef(false);
+    const compositionEnded = React.useRef(0);
     const maxRows = Math.floor(maxHeight / lineHeight);
 
     const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (!onKeyPress) return;
+        if (!editable || !onKeyPress) return;
 
         const isComposing = e.nativeEvent.isComposing || (e.nativeEvent as any).isComposing || e.keyCode === 229;
-        if (isComposing) {
+        if (isComposing || composing.current || (e.key === 'Enter' && Date.now() - compositionEnded.current < 80)) {
             return;
         }
 
@@ -120,7 +124,7 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
                 e.preventDefault();
             }
         }
-    }, [onKeyPress]);
+    }, [editable, onKeyPress]);
 
     // Use native DOM event listener for reliable paste handling across browsers
     const onPasteImagesRef = React.useRef(onPasteImages);
@@ -132,7 +136,7 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
 
         const handleNativePaste = (e: ClipboardEvent) => {
             const cb = onPasteImagesRef.current;
-            if (!cb) return;
+            if (!cb || textarea.readOnly) return;
 
             const clipboardData = e.clipboardData;
             if (!clipboardData) return;
@@ -267,11 +271,16 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
                 } as any}
                 placeholder={placeholder}
                 aria-label={accessibilityLabel}
+                readOnly={!editable}
+                aria-disabled={!editable}
                 value={value}
                 onChange={handleChange}
                 onSelect={handleSelect}
                 onKeyDown={handleKeyDown}
                 maxRows={maxRows}
+                enterKeyHint="enter"
+                onCompositionStart={() => { composing.current = true; }}
+                onCompositionEnd={() => { composing.current = false; compositionEnded.current = Date.now(); }}
                 autoCapitalize="sentences"
                 autoCorrect="on"
                 autoComplete="off"

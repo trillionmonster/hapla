@@ -17,6 +17,26 @@
         "types": "./dist/index.d.mts",
         "default": "./dist/index.mjs"
       }
+    },
+    "./gitWorkbench": {
+      "require": {
+        "types": "./dist/gitWorkbench.d.cts",
+        "default": "./dist/gitWorkbench.cjs"
+      },
+      "import": {
+        "types": "./dist/gitWorkbench.d.mts",
+        "default": "./dist/gitWorkbench.mjs"
+      }
+    },
+    "./sessionConfiguration": {
+      "require": {
+        "types": "./dist/sessionConfiguration.d.cts",
+        "default": "./dist/sessionConfiguration.cjs"
+      },
+      "import": {
+        "types": "./dist/sessionConfiguration.d.mts",
+        "default": "./dist/sessionConfiguration.mjs"
+      }
     }
   },
   "files": [

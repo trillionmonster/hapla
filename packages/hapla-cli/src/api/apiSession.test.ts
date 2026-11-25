@@ -693,7 +693,8 @@ describe('ApiSessionClient v3 messages API migration', () => {
             content: {
                 type: 'text',
                 text: 'from fetch'
-            }
+            },
+            meta: { permissionMode: 'dontAsk' }
         };
 
         mockAxiosGet.mockResolvedValueOnce({
@@ -723,7 +724,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             after_seq: 0,
             limit: 100
         });
-        expect(onUserMessage).toHaveBeenCalledWith(userMessage);
+        expect(onUserMessage).toHaveBeenCalledWith({ ...userMessage, delivery: { id: 'msg-1', createdAt: 1000 } });
         expect((client as any).lastSeq).toBe(1);
     });
 
@@ -850,7 +851,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         await (client as any).fetchMessages();
 
         expect(onUserMessage).toHaveBeenCalledTimes(1);
-        expect(onUserMessage).toHaveBeenCalledWith(userMessage);
+        expect(onUserMessage).toHaveBeenCalledWith({ ...userMessage, delivery: { id: 'msg-1', createdAt: 1000 } });
         expect(onMessage).toHaveBeenCalledTimes(1);
         expect(onMessage).toHaveBeenCalledWith(agentMessage);
     });
@@ -869,7 +870,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         emitSocketEvent('update', createNewMessageUpdate(2, encryptContent(session, userMessage)));
 
         expect(onUserMessage).toHaveBeenCalledTimes(1);
-        expect(onUserMessage).toHaveBeenCalledWith(userMessage);
+        expect(onUserMessage).toHaveBeenCalledWith({ ...userMessage, delivery: { id: 'msg-2', createdAt: expect.any(Number) } });
         expect((client as any).lastSeq).toBe(2);
         expect(mockAxiosGet).not.toHaveBeenCalled();
     });

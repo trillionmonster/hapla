@@ -35,7 +35,7 @@
         "selfhost:setup": "node ./scripts/selfhost.cjs configure",
         "selfhost:status": "node ./scripts/selfhost.cjs status",
         "selfhost:logs": "node ./scripts/selfhost.cjs logs",
-        "test:selfhost": "node --test scripts/tests/selfhost.test.cjs"
+        "test:selfhost": "node --test scripts/tests/selfhost.test.cjs scripts/tests/coding-dev.test.cjs"
     },
     "workspaces": {
         "packages": [

@@ -138,10 +138,20 @@ export async function resolveHaplaSession(sessionId: string): Promise<ResumableH
     }
 
     const matched = resolveSessionRecordByPrefix(sessions, sessionId);
+    const metadata = decryptSessionMetadata(matched, credentials);
+    const root = metadata.conversationRootSessionId;
+    if (root && root !== matched.id) {
+        const response = await axios.get(`${configuration.serverUrl}/v1/sessions/${encodeURIComponent(root)}/metadata`, {
+            headers: { Authorization: `Bearer ${credentials.token}` },
+        });
+        const owner = { ...response.data, id: root, active: false } as RawSession;
+        if (owner.conversationId !== matched.conversationId) throw new Error('会话配置归属不一致');
+        metadata.executionConfiguration = decryptSessionMetadata(owner, credentials).executionConfiguration;
+    }
     return {
         id: matched.id,
         conversationId: matched.conversationId ?? matched.id,
         active: matched.active,
-        metadata: decryptSessionMetadata(matched, credentials),
+        metadata,
     };
 }

@@ -1,0 +1,14 @@
+ARG DEV_BASE_IMAGE=node:22-bookworm
+FROM ${DEV_BASE_IMAGE}
+ARG CODEX_VERSION
+RUN apt-get update && apt-get install -y --no-install-recommends git ripgrep python3 make g++ ca-certificates fonts-noto-cjk chromium \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable \
+    && npm install --prefix /opt/hapla-browser playwright@1.65.1 \
+    && /opt/hapla-browser/node_modules/.bin/playwright install --with-deps webkit \
+    && if [ -n "$CODEX_VERSION" ]; then npm install -g "@openai/codex@$CODEX_VERSION"; fi
+ENV CHROMIUM_PATH=/usr/bin/chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+ENV HAPLA_PLAYWRIGHT_MODULE=/opt/hapla-browser/node_modules/playwright/index.mjs
+WORKDIR /repo
+CMD ["sleep", "infinity"]

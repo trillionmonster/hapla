@@ -1,61 +1,49 @@
 import type { MachineMetadata, Session } from './storageTypes';
-import type { PermissionModeKey } from '@/components/PermissionModeSelector';
+import type { SessionConfigurationValues } from '@hapla/wire';
 import { resolveModelCatalog } from '@/components/modelModeOptions';
-import { codexPreferenceMeta } from './codexPreferences';
+import { resolveCodexServiceTier } from './codexPreferences';
 
-function isSandboxEnabled(metadata: Session['metadata'] | null | undefined): boolean {
-    const sandbox = metadata?.sandbox;
-    return !!sandbox && typeof sandbox === 'object' && (sandbox as { enabled?: unknown }).enabled === true;
+type Selection = Pick<Session, 'permissionMode' | 'modelMode' | 'effortLevel' | 'metadata' | 'configuration' | 'codexPreferences'>;
+function resolveMessageModel(session: Selection, machine?: MachineMetadata | null) {
+    const values = session.configuration?.values;
+    const requested = values ? values.model : session.modelMode ?? undefined;
+    const model = requested === 'default' ? null : requested;
+    const catalog = resolveModelCatalog(session.metadata?.flavor, machine, session.metadata);
+    const actual = session.metadata?.effectiveConfiguration?.model ?? session.metadata?.currentModelCode;
+    const resolved = catalog?.find(row => row.code === (model ?? actual));
+    if (model && catalog?.length && !resolved && model !== actual) throw new Error(`模型 ${model} 当前不可用，请重新选择；原设置已保留`);
+    return { model, resolved };
 }
 
-function resolveMessageModel(
-    session: Pick<Session, 'modelMode' | 'metadata'>,
-    machineMetadata?: MachineMetadata | null,
-) {
-    const requestedModel = session.modelMode || 'default';
-    const advertisedModels = resolveModelCatalog(session.metadata?.flavor, machineMetadata, session.metadata);
-    const isStillAvailable = advertisedModels === undefined
-        || requestedModel === 'default'
-        || advertisedModels.some((model) => model.code === requestedModel);
-    // A model catalog can change when Codex updates. Never resend a stale
-    // locally cached model name; omitting it preserves the thread's resolved
-    // model instead.
-    const model = requestedModel !== 'default' && isStillAvailable ? requestedModel : null;
-    const resolvedModel = advertisedModels?.find((candidate) => candidate.code === (model ?? session.metadata?.currentModelCode))
-        ?? advertisedModels?.find((candidate) => candidate.code === requestedModel)
-        ?? (requestedModel === 'default' && !session.metadata?.currentModelCode ? advertisedModels?.[0] : undefined);
-    return { model, resolvedModel };
-}
-
-export function resolveMessageCodexPreferenceMeta(
-    session: Pick<Session, 'modelMode' | 'metadata' | 'codexPreferences'>,
-    machineMetadata?: MachineMetadata | null,
-) {
-    const { resolvedModel } = resolveMessageModel(session, machineMetadata);
-    // Validate at send time even while reply settings are collapsed. The
-    // portable Fast preference maps to the selected model's advertised tier.
-    return codexPreferenceMeta(session.codexPreferences, resolvedModel?.supportedServiceTiers ?? []);
-}
-
-export function resolveMessageModeMeta(
-    session: Pick<Session, 'permissionMode' | 'modelMode' | 'effortLevel' | 'metadata'>,
-    machineMetadata?: MachineMetadata | null,
-): { permissionMode: PermissionModeKey; model: string | null; effort: string | null } {
-    const sandboxEnabled = isSandboxEnabled(session.metadata);
-    const permissionMode: PermissionModeKey =
-        session.permissionMode && session.permissionMode !== 'default'
-            ? session.permissionMode
-            : (sandboxEnabled ? 'bypassPermissions' : 'default');
-    const { model, resolvedModel } = resolveMessageModel(session, machineMetadata);
-    const requestedEffort = session.effortLevel;
-    const effort = requestedEffort
-        && resolvedModel?.supportedEffortLevels?.includes(requestedEffort)
-        ? requestedEffort
-        : null;
-
+export function resolveMessageModeMeta(session: Selection, machine?: MachineMetadata | null): SessionConfigurationValues {
+    const values = session.configuration?.values;
+    const { model, resolved } = resolveMessageModel(session, machine);
+    const requested = values ? values.effort : session.effortLevel ?? undefined;
+    const effort = requested === 'default' ? null : requested;
+    if (effort && resolved?.supportedEffortLevels?.length && !resolved.supportedEffortLevels.includes(effort)) {
+        throw new Error(`当前模型不支持 ${effort} 思考强度，请重新选择；原设置已保留`);
+    }
+    const permissionMode = values?.permissionMode ?? (session.permissionMode && session.permissionMode !== 'default' ? session.permissionMode : undefined);
     return {
-        permissionMode,
-        model,
-        effort,
+        ...(permissionMode !== undefined ? { permissionMode: permissionMode as SessionConfigurationValues['permissionMode'] } : {}),
+        ...(model !== undefined ? { model } : {}),
+        ...(effort !== undefined ? { effort } : {}),
+    };
+}
+
+export function resolveMessageCodexPreferenceMeta(session: Selection, machine?: MachineMetadata | null) {
+    const values = session.configuration?.values;
+    const legacy = session.codexPreferences;
+    const { resolved } = resolveMessageModel(session, machine);
+    const verbosity = values ? values.verbosity : legacy?.verbosity;
+    const tier = values ? values.serviceTier : legacy?.serviceTier;
+    const collaborationMode = values ? values.collaborationMode : legacy?.collaborationMode;
+    const serviceTier = tier == null || tier === 'default' || tier === 'standard' ? tier
+        : resolved?.supportedServiceTiers ? resolveCodexServiceTier(tier, resolved.supportedServiceTiers) : tier;
+    if (tier && !['default', 'standard'].includes(tier) && serviceTier === 'default') throw new Error('当前模型不支持所选速度，请重新选择；原设置已保留');
+    return {
+        ...(verbosity !== undefined ? { verbosity: verbosity === 'default' ? null : verbosity } : {}),
+        ...(serviceTier !== undefined ? { serviceTier: serviceTier === 'default' || serviceTier === 'standard' ? null : serviceTier } : {}),
+        ...(collaborationMode !== undefined ? { collaborationMode } : {}),
     };
 }
