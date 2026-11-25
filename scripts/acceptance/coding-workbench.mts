@@ -249,14 +249,16 @@ export function useChanges() {
     await click(page.getByRole('button', { name: 'Refresh', exact: true }));
     await openFiles(); await page.getByRole('button', { name: /review file.txt/ }).waitFor();
     log({ type: 'passed', name: 'complete-large-UTF8-diff-and-branch-file-list' });
-    await context.setOffline(true); await message.fill('offline draft'); await click(page.getByRole('button', { name: 'Commit staged changes', exact: true }));
-    await page.getByRole('alert').waitFor(); assert.equal(await message.inputValue(), 'offline draft');
+    await message.fill('offline draft'); await context.setOffline(true);
     await click(page.getByRole('button', { name: 'Refresh', exact: true }));
-    await page.getByRole('alert').waitFor(); await context.setOffline(false);
+    await page.getByRole('alert').waitFor(); assert.equal(await message.inputValue(), 'offline draft');
+    assert.equal(await page.getByRole('button', { name: 'Commit staged changes', exact: true }).isDisabled(), true, 'Failed workspace reads block mutations');
+    await context.setOffline(false);
     await click(page.getByRole('button', { name: 'Refresh', exact: true }));
     await page.locator('.hapla-git-diff').waitFor();
     await waitFor(() => page.locator('.hapla-git-diff').textContent(), text => !!text?.includes('reviewable content'), 'retry reloads a failed diff at the same Git revision');
     assert.equal(await message.inputValue(), 'offline draft');
+    await waitFor(() => page.getByRole('button', { name: 'Commit staged changes', exact: true }).isEnabled(), value => value, 'successful status reload enables mutations');
     log({ type: 'passed', name: 'offline-failure-keeps-draft-and-diff-retry-recovers' });
     if (profile !== 'desktop') { await page.setViewportSize({ width: 844, height: 390 }); await click(page.getByRole('button', { name: 'Staged', exact: true })); await shot('04-landscape'); }
     await shot('03-final'); assert.deepEqual(errors, []); log({ type: 'complete', profile, sessionId, worktree });
