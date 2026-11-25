@@ -770,7 +770,7 @@ export async function startDaemon(): Promise<void> {
       spawnSession,
       resumeSession,
       stopSession,
-      resolveFileWorkspace: sessionId => Array.from(pidToTrackedSession.values()).find(session => session.haplaSessionId === sessionId)?.haplaSessionMetadataFromLocalWebhook?.path,
+      resolveFileWorkspace: sessionId => Array.from(pidToTrackedSession.values()).find(session => session.haplaSessionId === sessionId || session.haplaSessionMetadataFromLocalWebhook?.conversationRootSessionId === sessionId)?.haplaSessionMetadataFromLocalWebhook?.path,
       requestShutdown: () => requestShutdown('hapla-app')
     });
 

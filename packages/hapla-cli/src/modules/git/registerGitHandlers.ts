@@ -4,10 +4,11 @@ import { GitWorkbench } from './workbench';
 import { workspaceDirectory } from './gitProcess';
 import { worktreeOperation } from './worktrees';
 
-export function registerGitHandlers(manager: RpcHandlerManager, root: string, sessionId?: string) {
+export function registerGitHandlers(manager: RpcHandlerManager, root: string, sessionId?: string, resolveWorkspace?: (sessionId: string) => string | undefined) {
     manager.registerHandler('git-workbench', async input => {
         const data = gitWorkbenchRequestSchema.parse(input);
-        return new GitWorkbench(await workspaceDirectory(root, data.directory), sessionId ?? data.sessionId).execute(data);
+        const ownedRoot = data.sessionId ? resolveWorkspace?.(data.sessionId) : undefined;
+        return new GitWorkbench(await workspaceDirectory(ownedRoot ?? root, data.directory), sessionId ?? data.sessionId).execute(data);
     });
     manager.registerHandler('git-worktree', async input => {
         const data = worktreeRequestSchema.parse(input);

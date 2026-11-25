@@ -173,6 +173,8 @@ Stage files, commit, push a branch, and inspect draft GitHub pull requests and c
 Codex checkpoints can restore files and conversation together inside an exclusive
 worktree. The workbench supports light and dark themes, a compact phone layout,
 and large diffs with access to the complete raw patch.
+The session directory must be a Git repository and its worker needs an updated
+Hapla CLI. Loading failures show their cause and a retry action.
 [Coding workbench guide](docs/coding-workbench.md)
 
 ![Coder Changes showing the file list, a complete code diff, Git actions, and Codex checkpoints](docs/assets/coding-workbench.png)

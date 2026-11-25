@@ -1,5 +1,5 @@
 /** Worktree mutations run as validated, serialized operations on the owning worker. */
-import { worktreeRpc } from '@/sync/gitWorkbench';
+import { worktreeRpc } from '@/sync/worktreeRpc';
 export const WORKTREE_DIR = '.dev/worktree';
 export const WORKTREE_PATH_MARKER = `/${WORKTREE_DIR}/`;
 export interface WorktreeInfo { path: string; branch: string }

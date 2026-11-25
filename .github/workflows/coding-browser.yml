@@ -30,6 +30,7 @@ jobs:
         run: |
           for profile in desktop android iphone; do
             docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml exec -T -e PROFILE="$profile" -e HAPLA_ACCEPTANCE_OUTPUT="/repo/artifacts/coding-browser/$profile" coding-cli node_modules/.bin/tsx --tsconfig packages/hapla-cli/tsconfig.json scripts/acceptance/coding-workbench.mts
+            docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml exec -T -e PROFILE="$profile" -e HAPLA_ACCEPTANCE_OUTPUT="/repo/artifacts/coding-browser/$profile/loading" coding-cli node_modules/.bin/tsx --tsconfig packages/hapla-cli/tsconfig.json scripts/acceptance/git-workbench-loading.mts
             docker compose --project-name dev-hapla --env-file .runtime/coding-ci/dev.env -f scripts/acceptance/compose.coding.yml exec -T -e PROFILE="$profile" -e HAPLA_ACCEPTANCE_OUTPUT="/repo/artifacts/coding-browser/$profile/navigation" coding-cli node_modules/.bin/tsx --tsconfig packages/hapla-cli/tsconfig.json scripts/acceptance/session-navigation.mts
           done
       - name: Upload browser evidence

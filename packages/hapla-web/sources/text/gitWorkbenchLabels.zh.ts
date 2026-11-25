@@ -18,5 +18,10 @@ export const gitWorkbenchChinese: typeof gitWorkbenchEnglish = {
     statusComplete: '已完成', statusPending: '进行中', statusInterrupted: '已中断', statusFailed: '失败', statusManual: '已保存',
     prHint: '分支准备就绪后，可创建草稿 PR 进行审阅。',
     delivery: '提交与交付',
+    workspace: '工作目录', loading: '加载中…', notLoaded: '尚未加载', noCommits: '尚无提交',
+    unsupported: '此执行器尚未提供 Git 工具，请更新这台机器上的 Hapla CLI 后重试。',
+    notRepository: '当前工作目录不是 Git 仓库，请在已有 Git 项目目录中打开会话。',
+    timedOut: 'Git 请求超时，请检查执行器后重试。',
+    unavailable: '执行器不可用，请到机器页面检查连接状态。',
     contextUnknown: ({ tokens }: { tokens: string }) => `${tokens} tokens · 容量未知`,
 };

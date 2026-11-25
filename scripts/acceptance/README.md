@@ -13,6 +13,7 @@ send messages, access private credentials, or consume provider quota.
 | `first-question.mts` | First-prompt paste and file selection, failed upload retention, retry into the same session, a real Codex image answer, phone newline and IME confirmation |
 | `session-state.mts` | Fresh-device execution settings, concurrent field sync, branch isolation, durable queue edits, failed POST retention and same-ID retry with real Codex/local Responses |
 | `session-state-native.mts` | Native model/effort default reset and branch model retention using the local Responses fixture |
+| `git-workbench-loading.mts` | Real Git reads over encrypted RPC, legacy-session daemon fallback, unsupported workers, non-repositories, independent history loading, read timeout and draft-preserving retry; no model requests |
 | `session-navigation.mts` | Session-list return after direct links, reloads, conversation switches and workbench visits; isolated synthetic account, no agent requests |
 | `session-cache-smoke.mjs` | Synthetic browser fixture using the actual sync/store/reducer code |
 | `session-cache-production-smoke.mjs` | Production UI/cache behavior with an explicitly prepared test account |
@@ -185,6 +186,13 @@ local bare remote in the isolated runner. Use a dedicated runner: it intentional
 writes that runner's agent fixture config and Hapla credentials. It never copies
 a personal login. Preserve screenshots, video and `actions.ndjson` in ignored
 artifacts. The CI workflow `coding-browser.yml` runs the same sequence.
+
+Run `git-workbench-loading.mts` with the same Docker command and each profile to
+verify data loading and failures separately from native agent behavior. It uses
+an isolated account, real temporary Git repositories, and encrypted worker RPC;
+selected handlers delay or fail to exercise the UI. Its timeout case waits for
+the actual client deadline. It records screenshots, actions, and video without
+personal account credentials or model requests.
 
 ## Conversation state regressions
 

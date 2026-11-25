@@ -143,6 +143,7 @@ export class ApiMachineClient {
         resolveFileWorkspace
     }: MachineRpcHandlers) {
         registerCloudFileHandlers(this.rpcHandlerManager, this.workspaceRoot, this.token, resolveFileWorkspace);
+        registerGitHandlers(this.rpcHandlerManager, this.workspaceRoot, undefined, resolveFileWorkspace);
         this.resumeSessionHandler = resumeSession ?? null;
 
         const spawnReceipts = spawnSessionReceipts();

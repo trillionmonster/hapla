@@ -17,5 +17,10 @@ export const gitWorkbenchEnglish = {
     statusComplete: 'Completed', statusPending: 'In progress', statusInterrupted: 'Interrupted', statusFailed: 'Failed', statusManual: 'Saved',
     prHint: 'Open a draft pull request when your branch is ready for review.',
     delivery: 'Commit & deliver',
+    workspace: 'Workspace', loading: 'Loading…', notLoaded: 'Not loaded', noCommits: 'No commits yet',
+    unsupported: 'This worker does not provide Git tools. Update Hapla CLI on this machine, then retry.',
+    notRepository: 'This workspace is not a Git repository. Open a session in an existing Git project.',
+    timedOut: 'The Git request timed out. Check the worker and retry.',
+    unavailable: 'The worker is unavailable. Check its connection on the Machines page.',
     contextUnknown: ({ tokens }: { tokens: string }) => `${tokens} tokens · capacity unknown`,
 };

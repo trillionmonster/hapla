@@ -14,6 +14,7 @@
 .hapla-git h1, .hapla-git h2, .hapla-git h3, .hapla-git p { margin: 0; }
 .hapla-git-header { display: flex; align-items: center; gap: 12px; min-height: 66px; padding: 12px 22px; border-bottom: 1px solid var(--workspace-line); flex: none; }
 .hapla-git-heading { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+.hapla-git-workspace { padding: 7px 22px; border-bottom: 1px solid var(--workspace-line); color: var(--workspace-muted); font: 11px var(--git-mono); overflow-wrap: anywhere; flex: none; }
 .hapla-git h1 { font-size: 17px; font-weight: 600; letter-spacing: -.35px; white-space: nowrap; }
 .hapla-git-repository { font-size: 12px; color: var(--workspace-muted); max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hapla-git-branch { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 200px; color: var(--workspace-muted); font: 11px var(--git-mono); background: var(--git-chrome); padding: 5px 8px; border: 1px solid var(--workspace-line); border-radius: 5px; }

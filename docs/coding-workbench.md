@@ -2,7 +2,12 @@
 
 Open a conversation, switch to **Coder**, and choose **Changes**. Git operations
 run on the machine that owns the workspace. The same screen works on a phone.
-Older workers must be updated before they can serve the new Git RPCs.
+The workspace path stays visible above the tabs, including on phones. The
+workspace must already be a Git repository; Hapla does not initialize one.
+Older workers must be updated before they can serve the new Git RPCs. A preserved
+live session without these handlers can use its upgraded daemon for Git access
+without restarting that conversation. Only an explicit missing-handler response
+allows this fallback; uncertain mutations are never replayed on another route.
 
 ## Review
 
@@ -12,7 +17,12 @@ first and commit controls follow it. Use the filter to find a path. **Turn** ope
 the checkpoint list; choosing a checkpoint brings its diff and restore action
 into view. A file's full path is available in its tooltip.
 After reconnecting, the workbench refreshes read-only results. Commit and PR
-drafts remain editable after a failure.
+drafts remain editable after a failure. Status, commit history, and checkpoints
+load independently. Read requests for these resources stop after 20 seconds per
+route; diff reads stop after 45 seconds. Unsupported workers, non-repositories,
+and timeouts show an actionable error and Retry rather than an empty clean view.
+Switching tabs keeps the load error visible. Unknown counts use a dash, and
+workspace mutations remain disabled until status has loaded successfully.
 
 Formatted patches show file headers, old/new line numbers, and additions/removals
 with both signs and color. Only visible rows are mounted for large patches.
