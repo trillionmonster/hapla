@@ -125,7 +125,18 @@ try {
     // same owned repository without restarting that active conversation.
     const legacy = await connect('session', session.id);
     legacy.emit('session-alive', { sid: session.id, time: Date.now(), thinking: false });
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    // Heartbeats persist through a batched activity cache. Wait for the API's
+    // active flag before reloading, so the browser cannot race through the
+    // inactive-machine route and accidentally skip the compatibility path.
+    let active = false;
+    const deadline = Date.now() + 20_000;
+    do {
+        const response = await fetch(api + '/v1/sessions', { headers: { authorization: 'Bearer ' + token } });
+        const data = await response.json();
+        active = data.sessions.some((value: any) => value.id === session.id && value.active === true);
+        if (!active) await new Promise(resolve => setTimeout(resolve, 500));
+    } while (!active && Date.now() < deadline);
+    assert(active, 'Legacy session heartbeat is persisted before opening the browser');
     const before = calls.length, beforeReads = sessionReads; await open(); await settled();
     assert(sessionReads > beforeReads, 'Browser first attempts the live legacy session route');
     assert(calls.slice(before).includes('real:status'), 'Legacy live session falls back to daemon');
