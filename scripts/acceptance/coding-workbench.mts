@@ -177,11 +177,15 @@ export function useChanges() {
     await waitFor(() => page.locator('.hapla-git-diff').textContent(), text => !!text?.includes('+fixture-native-edit'), 'turn diff');
     page.once('dialog', dialog => dialog.accept());
     await click(page.getByRole('button', { name: 'Restore files and conversation', exact: true }));
+    await page.getByRole('status').getByText('Workspace and conversation restored on a new branch.', { exact: true }).waitFor();
     await waitFor(async () => readFileSync(join(worktree, 'tracked.txt'), 'utf8'), text => text === 'original\n', 'native-coordinated restore');
     assert(!existsSync(join(worktree, 'native-new.txt')));
     assert.equal(readFileSync(join(worktree, 'src/components/WorkspaceHeader.tsx'), 'utf8'), visualBase);
     assert(!existsSync(join(worktree, 'src/hooks/useChanges.ts')));
-    record = (await sessions()).find((s: any) => s.id === sessionId); metadata = decrypt(secret, 'legacy', Buffer.from(record.metadata, 'base64'));
+    metadata = await waitFor(async () => {
+        const value = (await sessions()).find((s: any) => s.id === sessionId);
+        return value?.metadata ? decrypt(secret, 'legacy', Buffer.from(value.metadata, 'base64')) as any : null;
+    }, value => value?.codexBranches?.length >= 2 && value.codexThreadId === value.activeCodexBranchId, 'persisted restored native thread and branch');
     assert(metadata.codexBranches.length >= 2); assert.equal(metadata.codexThreadId, metadata.activeCodexBranchId);
     log({ type: 'passed', name: 'workspace-and-native-thread-restored' }); await shot('02-restored');
     await page.goto(origin + '/session/' + sessionId);
