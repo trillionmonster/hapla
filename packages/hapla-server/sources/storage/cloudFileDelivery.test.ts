@@ -44,7 +44,7 @@ describe('NAS API v2 delivery', () => {
             expect(String(endpoint)).toBe('http://nas:9876/v1/upload'); expect(options?.method).toBe('POST');
             expect(new Headers(options?.headers).has('Authorization')).toBe(false);
             const payload = await consume(options); expect(Object.keys(payload).sort()).toEqual(['base64', 'filename']);
-            expect(payload.filename).toBe(input.name); expect(Buffer.from(payload.base64, 'base64')).toEqual(bytes);
+            expect(payload.filename).toBe(input.name); expect(payload.base64).toBe(bytes.toString('base64'));
             return Response.json({ url: url() });
         });
         const { adapter } = await service(fetcher);
