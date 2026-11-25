@@ -13,6 +13,7 @@ send messages, access private credentials, or consume provider quota.
 | `first-question.mts` | First-prompt paste and file selection, failed upload retention, retry into the same session, a real Codex image answer, phone newline and IME confirmation |
 | `session-state.mts` | Fresh-device execution settings, concurrent field sync, branch isolation, durable queue edits, failed POST retention and same-ID retry with real Codex/local Responses |
 | `session-state-native.mts` | Native model/effort default reset and branch model retention using the local Responses fixture |
+| `session-navigation.mts` | Session-list return after direct links, reloads, conversation switches and workbench visits; isolated synthetic account, no agent requests |
 | `session-cache-smoke.mjs` | Synthetic browser fixture using the actual sync/store/reducer code |
 | `session-cache-production-smoke.mjs` | Production UI/cache behavior with an explicitly prepared test account |
 | `reasoning-summary-production-smoke.mjs` | Real reasoning-output UI acceptance |

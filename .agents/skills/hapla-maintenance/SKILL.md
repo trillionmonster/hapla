@@ -77,6 +77,8 @@ description: 开发、迭代和维护当前 Hapla 项目，默认在 dev-hapla �
   前端变更按 [浏览器操作验收](../../../scripts/acceptance/README.md#frontend-interaction-acceptance)
   实际点击、输入、发送并核对执行结果；覆盖失败后保留输入、重试成功和状态持久化。
   发现缺陷后修复、重建并复测原操作序列，保留操作记录和录像；不能看完截图即结束。
+  返回导航修复使用 `session-navigation.mts` 覆盖直接链接、刷新、切换会话、变更页返回对话
+  再返回列表及手机横屏，逐项核对 URL 与列表可见性；不能仅验证按钮点击成功。
   手机端单独跑触控流程，覆盖新建与既有会话、弹层点按关闭、横屏、多行输入和低高度
   旁问停止入口；分别记录 Chromium/Android 与 WebKit/iPhone 模拟结果，不将模拟
   等同于实体设备、真实软键盘、系统粘贴菜单或 Safari App 验收。

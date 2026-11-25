@@ -171,7 +171,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 }}>
                     <ChatHeaderView
                         {...headerProps}
-                        onBackPress={() => router.back()}
+                        onBackPress={() => router.dismissTo('/')}
                         avatarMenuExpanded={Platform.OS === 'web' && !!sessionActionsAnchor}
                         avatarMenuSession={session}
                         onAfterAvatarArchive={() => {
@@ -807,7 +807,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             {
                 isLandscape && deviceType === 'phone' && (
                     <Pressable
-                        onPress={() => router.back()}
+                        onPress={() => router.dismissTo('/')}
                         style={{
                             position: 'absolute',
                             top: safeArea.top + 8,

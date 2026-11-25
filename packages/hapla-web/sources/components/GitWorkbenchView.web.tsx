@@ -116,7 +116,7 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
     const diffLabel = path ? path.split('/').at(-1)! : labels.allFiles;
     return <main className="hapla-git" style={style} aria-label={labels.review}>
         <header className="hapla-git-header">
-            <button className="hapla-git-icon-button" type="button" onClick={() => router.push(`/session/${sessionId}`)} aria-label={labels.back} title={labels.back}><Icon name="arrow-back-outline" size={19} /></button>
+            <button className="hapla-git-icon-button" type="button" onClick={() => router.dismissTo(`/session/${sessionId}`)} aria-label={labels.back} title={labels.back}><Icon name="arrow-back-outline" size={19} /></button>
             <div className="hapla-git-heading"><h1>{labels.title}</h1><span className="hapla-git-repository" title={directory}>{repositoryName}</span></div>
             <span className="hapla-git-branch" title={summary.branch}><Icon name="git-branch-outline" size={14} /><span>{summary.branch || '…'}</span></span>
             <div className="hapla-git-header-actions">

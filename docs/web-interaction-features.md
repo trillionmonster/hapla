@@ -1,5 +1,12 @@
 # Web interaction features
 
+## Returning to the session list
+
+The conversation header returns to the session list, including after a reload,
+direct link, or workspace visit. The Changes workbench returns to its existing
+conversation, replacing the current route when opened directly. Neither return
+action pushes another conversation onto the navigation stack.
+
 ## Codex follow-ups and interruption
 
 The composer names each delivery mode explicitly. Ordinary messages default to
