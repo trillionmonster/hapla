@@ -151,7 +151,7 @@ try {
     await git(root, ['add', '.']); await git(root, ['commit', '-m', 'Saved fixture changes']);
     const savedHead = (await git(root, ['rev-parse', 'HEAD'])).trim();
     await open();
-    await page.getByText('No uncommitted changes', { exact: true }).waitFor();
+    await page.getByText('No unstaged changes', { exact: true }).waitFor();
     await click(page.getByRole('button', { name: 'View latest commit', exact: true }));
     await settled();
     assert.equal(await page.getByRole('combobox', { name: 'Commit', exact: true }).inputValue(), savedHead);

@@ -14,7 +14,7 @@ export const gitWorkbenchChinese: typeof gitWorkbenchEnglish = {
     raw: '原始补丁', formatted: '格式化差异', loaded: '已加载', chooseTurn: '选择检查点，查看该轮修改。',
     errorTitle: '差异加载失败', errorHint: '请检查连接后刷新重试。',
     cleanTitle: '暂无可审阅的变更', cleanHint: '当前视图的代码变更会显示在这里。',
-    workingClean: '没有未提交的更改', workingCleanHint: '这里仅显示暂存或提交后的文件修改。已经提交的代码可在下方查看。',
+    workingClean: '没有未暂存的更改', workingCleanHint: '已暂存的修改请切换“已暂存”；已经提交的代码可在下方查看。',
     stagedClean: '没有已暂存的更改', branchClean: '与基线没有差异',
     viewLatestCommit: '查看最近提交',
     noRecordedTurns: '此会话尚未记录轮次',

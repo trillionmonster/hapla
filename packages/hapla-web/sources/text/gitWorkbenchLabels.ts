@@ -13,7 +13,7 @@ export const gitWorkbenchEnglish = {
     raw: 'Raw patch', formatted: 'Formatted diff', loaded: 'loaded', chooseTurn: 'Choose a checkpoint to review its changes.',
     errorTitle: 'Unable to load the diff', errorHint: 'Check your connection, then refresh to try again.',
     cleanTitle: 'Nothing to review', cleanHint: 'Changes in this view will appear here.',
-    workingClean: 'No uncommitted changes', workingCleanHint: 'This view only shows files changed since staging or committing. Existing commits are available below.',
+    workingClean: 'No unstaged changes', workingCleanHint: 'Staged changes are in the Staged tab. Existing commits are available below.',
     stagedClean: 'No staged changes', branchClean: 'No differences against the base',
     viewLatestCommit: 'View latest commit',
     noRecordedTurns: 'No recorded turns',
