@@ -141,6 +141,42 @@ try {
     assert(sessionReads > beforeReads, 'Browser first attempts the live legacy session route');
     assert(calls.slice(before).includes('real:status'), 'Legacy live session falls back to daemon');
     await passed('legacy-live-session-daemon-fallback');
+
+    await tab('Turn');
+    await page.getByText(/This conversation is still running an older worker process/).first().waitFor();
+    assert(await page.getByRole('button', { name: 'Save checkpoint', exact: true }).isDisabled());
+    assert.equal(await page.getByText('Checkpoints appear after your next Codex turn.', { exact: true }).count(), 0);
+    await passed('legacy-session-explains-missing-turn-capture');
+
+    await git(root, ['add', '.']); await git(root, ['commit', '-m', 'Saved fixture changes']);
+    const savedHead = (await git(root, ['rev-parse', 'HEAD'])).trim();
+    await open();
+    await page.getByText('No uncommitted changes', { exact: true }).waitFor();
+    await click(page.getByRole('button', { name: 'View latest commit', exact: true }));
+    await settled();
+    assert.equal(await page.getByRole('combobox', { name: 'Commit', exact: true }).inputValue(), savedHead);
+    await passed('clean-worktree-opens-actual-latest-commit');
+
+    legacy.disconnect();
+    assert((await fetch(api + '/v1/sessions/' + session.id + '/archive', { method: 'POST', headers: { authorization: 'Bearer ' + token } })).ok);
+    const continued = await client.getOrCreateSession({ tag: randomUUID(), conversationId: session.conversationId, metadata: { ...session.metadata, conversationRootSessionId: session.id }, state: null });
+    assert(continued);
+    const current = await connect('session', continued.id);
+    const currentManager = new RpcHandlerManager({ scopePrefix: continued.id, encryptionKey: continued.encryptionKey, encryptionVariant: continued.encryptionVariant, logger: () => {} });
+    current.on('rpc-request', async (data, ack) => ack(await currentManager.handleRequest(data)));
+    currentManager.onSocketConnect(current);
+    currentManager.registerHandler('git-workbench', request => new GitWorkbench(root, session.id).execute(request));
+    current.emit('session-alive', { sid: continued.id, time: Date.now(), thinking: false });
+    let continuedReads = 0;
+    page.on('websocket', value => value.on('framesent', frame => {
+        if (typeof frame.payload === 'string' && frame.payload.includes(continued.id + ':git-workbench')) continuedReads++;
+    }));
+    await open(); await tab('Turn');
+    await page.getByText('Checkpoints appear after your next Codex turn.', { exact: true }).waitFor();
+    assert(await page.getByRole('button', { name: 'Save checkpoint', exact: true }).isEnabled());
+    assert(continuedReads > 0, 'Original URL sends Git requests to the continued runtime');
+    assert.equal(new URL(page.url()).pathname, '/session/' + session.id + '/git');
+    await passed('original-url-uses-continued-runtime');
     assert.deepEqual(errors, []);
     writeFileSync(join(output, 'result.json'), JSON.stringify({ profile, passed: true, results, errors }, null, 2));
 } catch (error) {

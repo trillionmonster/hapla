@@ -9,8 +9,13 @@ describe('Git workbench transport compatibility', () => {
     it('uses the upgraded daemon when a preserved session explicitly has no Git handler', async () => {
         socket.sessionCommand.mockRejectedValue(new Error('RPC method not available'));
         socket.machineRPC.mockResolvedValue({ files: [], branch: 'main' });
-        expect(await gitWorkbenchRpc('old', 'machine', true, { operation: 'status', directory: '/project' })).toEqual({ files: [], branch: 'main' });
+        expect(await gitWorkbenchRpc('old', 'machine', true, { operation: 'status', directory: '/project' })).toEqual({ files: [], branch: 'main', requiresSessionUpgrade: true });
         expect(socket.machineRPC).toHaveBeenCalledWith('machine', 'git-workbench', { operation: 'status', directory: '/project', sessionId: 'old' }, 20_000);
+    });
+    it('does not claim the current session needs upgrading when it serves Git itself', async () => {
+        socket.sessionCommand.mockResolvedValue({ files: [], branch: 'main' });
+        expect(await gitWorkbenchRpc('current', 'machine', true, { operation: 'status' })).toEqual({ files: [], branch: 'main' });
+        expect(socket.machineRPC).not.toHaveBeenCalled();
     });
     it.each(['operation has timed out', 'RPC target disconnected', 'Git hook rejected commit'])('does not replay a mutation after %s', async message => {
         socket.sessionCommand.mockRejectedValue(new Error(message));

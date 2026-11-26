@@ -1,8 +1,9 @@
 import { apiSocket } from './apiSocket';
 import type { GitWorkbenchRequest, GitWorkbenchResponse } from '@hapla/wire';
+import type { GitWorkbenchResult } from './gitWorkbench';
 
 const isGitHandlerMissing = (error: unknown) => /^(RPC method not available|Method not found)$/i.test(error instanceof Error ? error.message : String(error));
-export async function gitWorkbenchRpc(sessionId: string, machineId: string | undefined, active: boolean, request: GitWorkbenchRequest) {
+export async function gitWorkbenchRpc(sessionId: string, machineId: string | undefined, active: boolean, request: GitWorkbenchRequest): Promise<GitWorkbenchResult> {
     const timeout = ['status', 'log', 'checkpoints'].includes(request.operation) ? 20_000 : request.operation === 'diff' ? 45_000 : 150_000;
     const machine = async () => {
         if (!machineId) throw new Error('Workspace is unavailable.');
@@ -10,14 +11,14 @@ export async function gitWorkbenchRpc(sessionId: string, machineId: string | und
         if (result?.error) throw new Error(result.error);
         return result;
     };
-    let value: GitWorkbenchResponse;
+    let value: GitWorkbenchResult;
     if (active) {
         try { value = await apiSocket.sessionCommand<GitWorkbenchResponse, GitWorkbenchRequest>(sessionId, 'git-workbench', request, timeout); }
         catch (error) {
             // A preserved agent process can predate its upgraded daemon. Only
             // an explicit missing-handler response proves no action executed.
             if (!machineId || !isGitHandlerMissing(error)) throw error;
-            value = await machine();
+            value = { ...await machine(), requiresSessionUpgrade: true };
         }
     } else value = await machine();
     if (value && 'error' in value) throw new Error(String(value.error));

@@ -175,6 +175,9 @@ worktree. The workbench supports light and dark themes, a compact phone layout,
 and large diffs with access to the complete raw patch.
 The session directory must be a Git repository and its worker needs an updated
 Hapla CLI. Loading failures show their cause and a retry action.
+A clean worktree links directly to the latest commit. Preserved older session
+processes explain when turn capture needs a continuation with the updated CLI;
+updating the daemon alone does not add historical checkpoints.
 [Coding workbench guide](docs/coding-workbench.md)
 
 ![Coder Changes showing the file list, a complete code diff, Git actions, and Codex checkpoints](docs/assets/coding-workbench.png)

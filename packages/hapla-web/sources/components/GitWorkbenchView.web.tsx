@@ -3,8 +3,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useWindowDimensions } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
 import { useRouter } from 'expo-router';
-import { useSession } from '@/sync/storage';
-import { gitWorkbenchRpc } from '@/sync/gitWorkbench';
+import { storage, useSession } from '@/sync/storage';
+import { isSameConversation } from '@/sync/conversationSessions';
+import { gitWorkbenchRpc, type GitWorkbenchResult } from '@/sync/gitWorkbench';
 import { gitWorkbenchErrorCode } from '@/sync/gitWorkbenchErrors';
 import { apiSocket } from '@/sync/apiSocket';
 import { getCurrentLanguage } from '@/text';
@@ -23,7 +24,12 @@ const Icon = ({ name, size = 16 }: { name: IconName; size?: number }) => <Ionico
 export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
     const language = getCurrentLanguage();
     const labels = language.startsWith('zh') ? gitWorkbenchChinese : gitWorkbenchEnglish;
-    const session = useSession(sessionId); const router = useRouter(); const workspaceStyle = useWorkspaceControlStyle();
+    const requestedSession = useSession(sessionId);
+    const session = storage(state => requestedSession ? Object.values(state.sessions)
+        .filter(candidate => candidate.active && isSameConversation(requestedSession, candidate))
+        .sort((a, b) => b.activeAt - a.activeAt || b.createdAt - a.createdAt)[0] ?? requestedSession : null);
+    const runtimeSessionId = session?.id ?? sessionId;
+    const router = useRouter(); const workspaceStyle = useWorkspaceControlStyle();
     const { theme } = useUnistyles(); const compact = useWindowDimensions().width <= 1100;
     const directory = session?.metadata?.path; const machineId = session?.metadata?.machineId;
     const style = { ...workspaceStyle,
@@ -39,7 +45,7 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
         '--git-primary': theme.dark ? '#82d8af' : '#176b4c',
         '--git-primary-text': theme.dark ? '#10291e' : '#fff',
     } as React.CSSProperties;
-    const [summary, setSummary] = React.useState<GitWorkbenchResponse>({});
+    const [summary, setSummary] = React.useState<GitWorkbenchResult>({});
     const [commits, setCommits] = React.useState<NonNullable<GitWorkbenchResponse['commits']>>([]);
     const [checkpoints, setCheckpoints] = React.useState<NonNullable<GitWorkbenchResponse['checkpoints']>>([]);
     const [source, setSource] = React.useState<GitSource>('working'); const [path, setPath] = React.useState('');
@@ -63,8 +69,8 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
     const mounted = React.useRef(true); React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; generation.current++; loadGeneration.current++; }; }, []);
     const rpc = React.useCallback((request: GitWorkbenchRequest) => {
         if (!directory || (!session?.active && !machineId)) return Promise.reject(new Error('Workspace is unavailable.'));
-        return gitWorkbenchRpc(sessionId, machineId, session?.active === true, { directory, sessionId: session?.metadata?.conversationRootSessionId ?? sessionId, ...request });
-    }, [sessionId, machineId, session?.active, directory, session?.metadata?.conversationRootSessionId]);
+        return gitWorkbenchRpc(runtimeSessionId, machineId, session?.active === true, { directory, sessionId: session?.metadata?.conversationRootSessionId ?? sessionId, ...request });
+    }, [sessionId, runtimeSessionId, machineId, session?.active, directory, session?.metadata?.conversationRootSessionId]);
     const load = React.useCallback(async () => {
         if (!directory) return;
         const version = ++loadGeneration.current;
@@ -125,10 +131,10 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
     const stats = React.useMemo(() => parseReviewPatch(diff?.text ?? ''), [diff?.text]);
     const restore = () => run(async () => {
         if (!selectedCheckpoint || !summary.revision || !window.confirm(labels.restoreConfirm)) return;
-        const result = await apiSocket.sessionCommand<{ message: string }, { id: string; revision: string }>(sessionId, 'git-checkpoint-restore', { id: selectedCheckpoint.id, revision: summary.revision }, 150_000);
+        const result = await apiSocket.sessionCommand<{ message: string }, { id: string; revision: string }>(runtimeSessionId, 'git-checkpoint-restore', { id: selectedCheckpoint.id, revision: summary.revision }, 150_000);
         setFeedback(result.message);
     });
-    const restoreEnabled = summary.isWorktree && session?.metadata?.flavor === 'codex' && session.active && !!selectedCheckpoint?.threadId && selectedCheckpoint.threadId === session.metadata.codexThreadId;
+    const restoreEnabled = !summary.requiresSessionUpgrade && summary.isWorktree && session?.metadata?.flavor === 'codex' && session.active && !!selectedCheckpoint?.threadId && selectedCheckpoint.threadId === session.metadata.codexThreadId;
     const selectSource = (value: GitSource) => { setSource(value); setPath(''); if (value === 'turn') setFilesOpen(true); };
     const fileStatus = (file: GitChangedFile) => {
         const code = file.index === '?' || file.working === 'A' || file.index === 'A' ? 'A' : file.working === 'D' || file.index === 'D' ? 'D' : file.originalPath ? 'R' : 'M';
@@ -141,6 +147,10 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
     const diffFailed = !reviewPending && !!error && diff === null;
     const canMutate = !busy && !pending.status && !!summary.revision && !loadErrors.status;
     const filesKnown = historical ? !!diff : Array.isArray(summary.files);
+    const latestCommit = commits[0];
+    const emptyTitle = source === 'working' ? labels.workingClean : source === 'staged' ? labels.stagedClean : source === 'branch' ? labels.branchClean : source === 'turn' && !checkpointId ? labels.noRecordedTurns : labels.cleanTitle;
+    const emptyHint = source === 'turn' && !checkpointId ? summary.requiresSessionUpgrade ? labels.legacySession : labels.chooseTurn : source === 'working' ? labels.workingCleanHint : labels.cleanHint;
+    const showLatestCommit = !reviewPending && !diffFailed && !diff?.text && !!latestCommit && source !== 'commit';
     const diffLabel = path ? path.split('/').at(-1)! : labels.allFiles;
     return <main className="hapla-git" style={style} aria-label={labels.review}>
         <header className="hapla-git-header">
@@ -189,8 +199,8 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
                     <details className="hapla-git-checkpoints" open={source === 'turn'}>
                         <summary><Icon name="time-outline" size={15} /><span>{labels.checkpoints}</span><span className="hapla-git-count">{pending.checkpoints || loadErrors.checkpoints ? '—' : checkpoints.length}</span><Icon name="chevron-down-outline" size={12} /></summary>
                         <div className="hapla-git-checkpoint-list">
-                            <button type="button" className="hapla-git-button hapla-git-button--quiet hapla-git-save-checkpoint" disabled={!canMutate || !session?.active || session.metadata?.flavor !== 'codex'} onClick={() => void run(async () => { await apiSocket.sessionCommand(sessionId, 'git-checkpoint-create', {}); })}><Icon name="add-outline" size={14} />{labels.checkpointCreate}</button>
-                            {checkpoints.length === 0 && <p className="hapla-git-sidebar-empty">{pending.checkpoints ? labels.loading : loadErrors.checkpoints ? labels.notLoaded : labels.noCheckpoints}</p>}
+                            <button type="button" className="hapla-git-button hapla-git-button--quiet hapla-git-save-checkpoint" disabled={!canMutate || summary.requiresSessionUpgrade || !session?.active || session.metadata?.flavor !== 'codex'} onClick={() => void run(async () => { await apiSocket.sessionCommand(runtimeSessionId, 'git-checkpoint-create', {}); })}><Icon name="add-outline" size={14} />{labels.checkpointCreate}</button>
+                            {checkpoints.length === 0 && <p className="hapla-git-sidebar-empty">{pending.checkpoints ? labels.loading : loadErrors.checkpoints ? labels.notLoaded : summary.requiresSessionUpgrade ? labels.legacySession : labels.noCheckpoints}</p>}
                             {checkpoints.slice().reverse().map(item => <button className="hapla-git-checkpoint" type="button" key={item.id} aria-pressed={checkpointId === item.id && source === 'turn'} onClick={() => { setCheckpointId(item.id); setSource('turn'); setPath(''); setFilesOpen(!compact); }}>
                                 <span className={`hapla-git-checkpoint-dot hapla-git-checkpoint-dot--${item.status}`} /><span><strong>{item.label}</strong><small>{formatTime(item.createdAt)}<span>{statusLabel(item.status)}</span></small></span>
                             </button>)}
@@ -205,7 +215,7 @@ export default function GitWorkbenchView({ sessionId }: { sessionId: string }) {
                 <div className="hapla-git-diff-heading"><Icon name="git-compare-outline" /><strong title={path || undefined}>{diffLabel}</strong><span className="hapla-git-diff-stats" aria-label={diff ? `${stats.added} ${labels.fileAdded}, ${stats.removed} ${labels.fileDeleted}` : labels.notLoaded}><span>{diff ? `+${stats.added}` : '—'}</span><span>{diff ? `−${stats.removed}` : '—'}</span></span>
                     <button type="button" className="hapla-git-icon-button" aria-label={raw ? labels.formatted : labels.raw} title={raw ? labels.formatted : labels.raw} aria-pressed={raw} onClick={() => setRaw(value => !value)}><Icon name={raw ? 'list-outline' : 'code-slash-outline'} /></button>
                 </div>
-                {reviewPending ? <div className="hapla-git-diff-skeleton" role="status" aria-label={labels.busy}>{[72, 48, 63, 38, 57, 45].map((width, i) => <span key={i} style={{ width: `${width}%` }} />)}</div> : diff?.text ? <GitWorkbenchDiff text={diff.text} patch={stats} label={labels.diff} raw={raw} /> : <div className="hapla-git-empty"><span className="hapla-git-empty-icon"><Icon name={diffFailed ? 'alert-circle-outline' : source === 'turn' && !checkpointId ? 'time-outline' : 'checkmark-done-outline'} size={26} /></span><h3>{diffFailed ? labels.errorTitle : labels.cleanTitle}</h3><p>{diffFailed ? error : source === 'turn' && !checkpointId ? labels.chooseTurn : labels.cleanHint}</p></div>}
+                {reviewPending ? <div className="hapla-git-diff-skeleton" role="status" aria-label={labels.busy}>{[72, 48, 63, 38, 57, 45].map((width, i) => <span key={i} style={{ width: `${width}%` }} />)}</div> : diff?.text ? <GitWorkbenchDiff text={diff.text} patch={stats} label={labels.diff} raw={raw} /> : <div className="hapla-git-empty"><span className="hapla-git-empty-icon"><Icon name={diffFailed ? 'alert-circle-outline' : source === 'turn' && !checkpointId ? 'time-outline' : 'checkmark-done-outline'} size={26} /></span><h3>{diffFailed ? labels.errorTitle : emptyTitle}</h3><p>{diffFailed ? error : emptyHint}</p>{showLatestCommit && <><p>{latestCommit.id.slice(0, 8)} · {latestCommit.subject}</p><button type="button" className="hapla-git-button" onClick={() => { setRef(latestCommit.id); setSource('commit'); setPath(''); }}><Icon name="git-commit-outline" />{labels.viewLatestCommit}</button></>}</div>}
                 <div className="hapla-git-diff-footer"><span>{reviewPending ? labels.busy : filesKnown ? `${listedFiles?.length ?? 0} ${labels.filesChanged}` : labels.notLoaded}</span><span>{diff?.nextOffset != null ? `${new TextEncoder().encode(diff.text ?? '').length.toLocaleString()} / ${diff.totalBytes?.toLocaleString()} B ${labels.loaded}` : diff ? `${(diff.totalBytes ?? 0).toLocaleString()} B` : ''}</span>
                     {diff?.nextOffset != null && <button type="button" className="hapla-git-button hapla-git-button--quiet" disabled={busy} onClick={() => void run(async () => {
                         const version = generation.current; const next = await rpc({ ...query, offset: diff.nextOffset!, expectedRevision: diff.revision });

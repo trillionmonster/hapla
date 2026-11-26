@@ -8,6 +8,10 @@ Older workers must be updated before they can serve the new Git RPCs. A preserve
 live session without these handlers can use its upgraded daemon for Git access
 without restarting that conversation. Only an explicit missing-handler response
 allows this fallback; uncertain mutations are never replayed on another route.
+This fallback restores Git access, but does not add checkpoint capture to an
+already running worker process. Its Turn view explains that limitation and
+disables native checkpoint actions until the conversation resumes with the
+updated CLI. Past turn checkpoints cannot be reconstructed.
 
 ## Review
 
@@ -23,6 +27,9 @@ route; diff reads stop after 45 seconds. Unsupported workers, non-repositories,
 and timeouts show an actionable error and Retry rather than an empty clean view.
 Switching tabs keeps the load error visible. Unknown counts use a dash, and
 workspace mutations remain disabled until status has loaded successfully.
+An empty worktree view explains that staging or committing removes files from
+that view. When commits exist, **View latest commit** opens their actual patch
+directly. Staged and base comparisons identify which comparison is empty.
 
 Formatted patches show file headers, old/new line numbers, and additions/removals
 with both signs and color. Only visible rows are mounted for large patches.
