@@ -173,6 +173,7 @@ try {
     }));
     await open(); await tab('Turn');
     await page.getByText('Checkpoints appear after your next Codex turn.', { exact: true }).waitFor();
+    await page.locator('.hapla-git-save-checkpoint:enabled').waitFor();
     assert(await page.getByRole('button', { name: 'Save checkpoint', exact: true }).isEnabled());
     assert(continuedReads > 0, 'Original URL sends Git requests to the continued runtime');
     assert.equal(new URL(page.url()).pathname, '/session/' + session.id + '/git');
