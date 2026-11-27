@@ -1,10 +1,15 @@
 import { trimIdent } from '@/utils/trimIdent';
+import type { PermissionMode } from '@/api/types';
+import type { ApprovalPolicy, SandboxMode } from './codexAppServerTypes';
+import { resolveCodexExecutionPolicy } from './executionPolicy';
 
 type ResumeThreadClient = {
     resumeThread: (opts: {
         threadId: string;
         cwd: string;
         mcpServers: Record<string, unknown>;
+        approvalPolicy?: ApprovalPolicy;
+        sandbox?: SandboxMode;
     }) => Promise<{ threadId: string; model: string }>;
 };
 
@@ -23,12 +28,14 @@ export async function resumeExistingThread(opts: {
     threadId: string;
     cwd: string;
     mcpServers: Record<string, unknown>;
+    permissionMode?: PermissionMode;
 }): Promise<{ threadId: string; model: string }> {
     try {
         const resumedThread = await opts.client.resumeThread({
             threadId: opts.threadId,
             cwd: opts.cwd,
             mcpServers: opts.mcpServers,
+            ...(opts.permissionMode ? resolveCodexExecutionPolicy(opts.permissionMode, false) : {}),
         });
 
         opts.session.updateMetadata((currentMetadata) => ({

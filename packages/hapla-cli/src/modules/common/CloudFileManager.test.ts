@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, writeFile, stat, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, writeFile, stat, rm, symlink, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -69,7 +69,13 @@ describe('cloud file preparation', () => {
         expect(fetcher).not.toHaveBeenCalled();
     });
     it('rejects exactly one MiB and detects writes during preparation', async () => {
-        const fetcher = vi.fn(async () => { await writeFile(file.path, Buffer.alloc(file.request.size, 42)); return Response.json(delivery); }) as unknown as typeof fetch;
+        const fetcher = vi.fn(async () => {
+            await writeFile(file.path, Buffer.alloc(file.request.size, 42));
+            // Coarse filesystem timestamps can give two immediate writes the
+            // same revision. Make this fixture's intervening edit unambiguous.
+            await utimes(file.path, new Date(), new Date(file.request.modified + 1000));
+            return Response.json(delivery);
+        }) as unknown as typeof fetch;
         const file = await setup(fetcher);
         expect((await file.manager.prepare({ ...file.request, size: 1024 * 1024 })).success).toBe(false);
         const job = await file.manager.prepare(file.request);

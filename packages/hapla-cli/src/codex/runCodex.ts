@@ -1248,6 +1248,7 @@ export async function runCodex(opts: {
                         threadId: opts.resumeThreadId,
                         cwd: process.cwd(),
                         mcpServers,
+                        permissionMode: session.getMetadata()?.executionConfiguration?.values.permissionMode,
                     });
                     activeCodexBranchId = session.getMetadata()?.activeCodexBranchId ?? resumed.threadId;
                     session.updateMetadata((metadata) => ({

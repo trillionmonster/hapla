@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { resumeExistingThread } from './resumeExistingThread';
 
 describe('resumeExistingThread', () => {
+    it.each([
+        ['read-only', 'never', 'read-only'],
+        ['yolo', 'never', 'danger-full-access'],
+        ['safe-yolo', 'on-request', 'workspace-write'],
+        ['default', 'untrusted', 'workspace-write'],
+    ] as const)('explicitly restores saved %s permissions instead of native defaults', async (permissionMode, approvalPolicy, sandbox) => {
+        const client = { resumeThread: vi.fn().mockResolvedValue({ threadId: 'thread', model: 'model' }) };
+        await resumeExistingThread({ client, session: { updateMetadata: vi.fn() }, messageBuffer: { addMessage: vi.fn() },
+            threadId: 'thread', cwd: '/project', mcpServers: {}, permissionMode });
+        expect(client.resumeThread).toHaveBeenCalledWith({ threadId: 'thread', cwd: '/project', mcpServers: {}, approvalPolicy, sandbox });
+    });
+
     it('resumes the thread and updates session metadata', async () => {
         const client = {
             resumeThread: vi.fn().mockResolvedValue({

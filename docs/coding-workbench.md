@@ -109,6 +109,8 @@ unborn HEAD without creating a branch commit or changing staged files. Creating
 the first commit changes that boundary, so restoring an earlier checkpoint is
 rejected by the same HEAD check. A repository without Git metadata still cannot
 provide Git checkpoints.
+When continuing a session with saved permissions, Hapla passes that policy to
+the native resume request explicitly; native defaults must not replace it.
 Claude sessions support the Git review and delivery actions; coordinated
 conversation/file restore is currently Codex-only and its button is disabled
 for Claude. The main checkout cannot be restored through this action.

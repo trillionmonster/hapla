@@ -108,6 +108,8 @@ description: 开发、迭代和维护当前 Hapla 项目，默认在 dev-hapla �
   状态和本地 Responses 夹具，构建/单测结束后再跑，避免 dist 被全局测试准备清空。
   手动和 daemon 恢复还需保留稳定根 ID、分支、原生参数及私有启动环境；不把环境值
   写入共享 metadata 或验收日志。
+  原生接续须显式传递已保存的权限策略，并核验接续后的实际 sandbox/approval；
+  启动参数或页面配置相同不能代替原生生效值一致。
 - 协议或业务修复：读 [仓库结构](../../../docs/repository-layout.md)、
   [测试说明](../../../docs/testing.md)，按需再读对应功能文档。
 - R2 交付或网关：读 [Cloudflare](../../../docs/cloudflare.md)。外部文件服务独立维护，
