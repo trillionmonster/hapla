@@ -7,6 +7,28 @@ import { worktreeOperation } from './worktrees';
 import { WorkspaceCheckpoints } from './checkpoints';
 import { installCodexCheckpoints } from './codexCheckpoints';
 
+it.each([true, false])('captures automatic and manual native checkpoints in an unborn repository (fresh=%s)', async fresh => {
+    const root = await mkdtemp(join(tmpdir(), 'hapla-native-unborn-'));
+    try {
+        await git(root, ['init', '-b', 'main']); await writeFile(join(root, 'f'), 'before');
+        const handlers = new Map<string, (value?: any) => Promise<any>>(); let forks = 0;
+        const client = { isFreshThread: fresh, threadId: 'original', requestRaw: async (method: string) => {
+            expect(method).toBe('thread/fork'); forks++; return { thread: { id: 'saved-native-' + forks } };
+        } };
+        const controller = installCodexCheckpoints({ root, client: client as any, session: { sessionId: 'sid', getMetadata: () => ({ conversationRootSessionId: 'sid' }),
+            rpcHandlerManager: { registerHandler: (key: string, handler: any) => handlers.set(key, handler) },
+        } as any, isBusy: () => false, branch: () => 'original', setBranch: () => {} });
+        const point = await controller.begin('first turn');
+        expect(point.emptyThread).toBe(fresh); expect(point.nativeRestoreThreadId).toBe(fresh ? undefined : 'saved-native-1');
+        await writeFile(join(root, 'f'), 'after'); await controller.finish(point.id, 'turn', 'complete');
+        const manual = await handlers.get('git-checkpoint-create')!();
+        expect(manual.status).toBe('manual'); expect(forks).toBe(fresh ? 0 : 2);
+        const diff = await handlers.get('git-workbench')!({ operation: 'diff', source: 'turn', checkpointId: point.id });
+        expect(diff.text).toContain('-before'); expect(diff.text).toContain('+after');
+        await expect(git(root, ['rev-parse', '--verify', 'HEAD'])).rejects.toThrow();
+    } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 it('keeps files intact on native failure, rejects intervening edits, and restores with the exact conversation boundary', async () => {
     const root = await mkdtemp(join(tmpdir(), 'hapla-restore-')); let directory = '';
     try {

@@ -4,7 +4,7 @@ import type { ApiSessionClient } from '@/api/apiSession';
 import type { CodexAppServerClient } from '@/codex/codexAppServerClient';
 import type { GitCheckpoint } from '@hapla/wire';
 import { WorkspaceCheckpoints } from './checkpoints';
-import { git, serialized } from './gitProcess';
+import { serialized } from './gitProcess';
 import { z } from 'zod';
 
 export function installCodexCheckpoints(options: {
@@ -20,7 +20,7 @@ export function installCodexCheckpoints(options: {
     let restored = () => {};
     const capture = async (label: string, boundary: { forkMessageId?: string; forkMessageCreatedAt?: number } = {}, manual = false) => {
         if (restoring) throw new Error('Workspace restore is in progress.');
-        await git(root, ['rev-parse', '--verify', 'HEAD']);
+        await checkpoints.head();
         const emptyThread = client.isFreshThread;
         // thread/read(includeTurns) is unavailable on some supported native versions.
         // Preserve a native pre-turn fork instead of guessing a history boundary.

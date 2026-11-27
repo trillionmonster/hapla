@@ -175,6 +175,8 @@ worktree. The workbench supports light and dark themes, a compact phone layout,
 and large diffs with access to the complete raw patch.
 The session directory must be a Git repository and its worker needs an updated
 Hapla CLI. Loading failures show their cause and a retry action.
+Automatic and manual checkpoints also work before the repository's first commit,
+preserving its uncommitted files and staged baseline.
 A clean worktree links directly to the latest commit. Preserved older session
 processes explain when turn capture needs a continuation with the updated CLI;
 updating the daemon alone does not add historical checkpoints.
